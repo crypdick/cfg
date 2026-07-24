@@ -1,0 +1,140 @@
+[project]
+name = "cfg"
+version = "0.1.0"
+description = "Apply host and repository configuration from a separate personalization repository."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "beartype",
+    "pydantic",
+    "pyinfra",
+    "tomli-w>=1.2.0",
+    "typer",
+]
+
+[dependency-groups]
+test = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+]
+
+[project.scripts]
+cfg = "main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cfg*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "B", "UP",       # existing rules
+    "S",                                    # flake8-bandit (security)
+    "C4",                                   # flake8-comprehensions
+    "SIM",                                  # flake8-simplify
+    "TCH",                                  # flake8-type-checking
+    "RUF",                                  # ruff-specific rules
+    "PT",                                   # flake8-pytest-style
+    "PERF",                                 # perflint
+    "ERA",                                  # eradicate (commented-out code)
+    "T20",                                  # flake8-print
+    "DTZ",                                  # flake8-datetimez
+    "FURB",                                 # refurb (modern Python idioms)
+    "PIE",                                  # misc lints
+    "FLY",                                  # flynt (string join → f-string)
+    "RET",                                  # flake8-return
+    "PLW",                                  # pylint warnings
+    "BLE",                                  # flake8-blind-except
+]
+ignore = [
+    "E501",       # line too long (handled by line-length setting)
+    "S101",       # assert used (we use assert in non-test code intentionally with beartype patterns)
+    "S603",       # subprocess call with shell=False (we control all inputs)
+    "S607",       # partial executable path in subprocess (intentional for system tools)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",       # assert is the whole point of tests
+    "S106",       # possible hardcoded password (test fixtures)
+    "S108",       # probable insecure temp file usage (test fixtures)
+    "T20",        # print in tests is fine for debugging
+]
+"scripts/**/*.py" = [
+    "T20",        # scripts may legitimately print
+    "BLE001",     # scripts use broad except for user-facing error reporting
+]
+"main.py" = [
+    "T20",        # CLI entry point
+]
+"cfg/**/cli*.py" = [
+    "T20",        # CLI modules may use print via rich
+]
+"cfg/**/app.py" = [
+    "T20",        # Typer app modules
+]
+"cfg/**/*.py" = [
+    "TCH",        # beartype_this_package() needs runtime imports, not TYPE_CHECKING
+]
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+strict_markers = true
+strict_config = true
+xfail_strict = true
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:pyinfra.*",
+    "ignore::DeprecationWarning:gevent.*",
+]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+]
+
+[tool.coverage.run]
+source = ["cfg"]
+omit = [
+    "tests/*",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_empty = true
+
+[tool.vulture]
+exclude = [".venv/"]
+ignore_decorators = [
+    "@app.command",
+    "@features_app.command",
+    "@managed_app.command",
+    "@deploy",
+    "@field_validator",
+    "@model_validator",
+]
+ignore_names = [
+    # Pydantic v2 config/validator conventions:
+    "model_config",
+    "cls",
+    "schema_version",
+    # Runtime/entrypoint patterns vulture can't see:
+    "_USE_VFORK",
+    "make_names_data",
+    # Intentional side effects / global flags:
+    "is_cli",
+    "dont_write_bytecode",
+    # Called via CLI flows but vulture still flags it.
+    "write_repo_precommit",
+]

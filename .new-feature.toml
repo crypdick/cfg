@@ -1,0 +1,11 @@
+target_branch = "main"
+setup = ["uv sync --group test --locked"]
+pre_merge = [
+    "uv sync --group test --locked",
+    "uvx pre-commit run --all-files",
+]
+post_merge = [
+    "uv sync --group test --locked",
+    "uvx pre-commit run --all-files",
+]
+teardown = []

@@ -1,0 +1,20 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.13",
+  "reportMissingTypeStubs": "warning",
+  "reportUnknownMemberType": "warning",
+  "reportUnknownArgumentType": "warning",
+  "reportUnknownVariableType": "warning",
+  "reportUnknownParameterType": "warning",
+  "reportUnknownLambdaType": "warning",
+  "reportMissingParameterType": "error",
+  "reportUnnecessaryTypeIgnoreComment": "warning",
+  "reportPrivateUsage": "warning",
+  "reportPrivateImportUsage": "warning",
+  "exclude": [
+    ".venv",
+    "**/__pycache__"
+  ]
+}
