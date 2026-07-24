@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 from typing import TYPE_CHECKING
 
@@ -130,13 +129,13 @@ def test_inventory_toml_read_error_is_user_friendly(tmp_path: Path) -> None:
 
     p = cfg_root / "hosts" / "h1" / "cfg.toml"
     _write(p, 'name="h1"\n')
-    os.chmod(p, 0)
+    p.chmod(0)
     try:
         with pytest.raises(CfgError, match="Failed to read TOML inventory file"):
             load_inventory(cfg_root)
     finally:
         # Ensure cleanup so pytest can delete temp dirs.
-        os.chmod(p, 0o644)
+        p.chmod(0o644)
 
 
 def test_inventory_wraps_host_and_repo_model_validation(tmp_path: Path) -> None:

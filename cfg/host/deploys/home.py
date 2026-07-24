@@ -63,7 +63,7 @@ def _ensure_parent_dirs_for_desired(*, home: str, desired: dict[Path, OwnerFile]
     parent_dirs: set[Path] = set()
     for rel in desired:
         parent = rel.parent
-        if str(parent) and parent != Path("."):
+        if str(parent) and parent != Path():
             parent_dirs.add(parent)
 
     for parent in sorted(parent_dirs, key=lambda p: p.as_posix()):
@@ -127,7 +127,7 @@ def deploy_apply_home() -> None:
         raise CfgError("Missing host identity (host.data._cfg_host_name).")
 
     plan: HomePlan = resolve_host_home_plan(cfg_root=cfg_root, host=host_name, enabled_owner_ids=owner_ids)
-    roots = managed_home_roots(cfg_root, host_name)
+    roots = managed_home_roots(cfg_root)
 
     # Apply home files BEFORE running feature deploys.
     #

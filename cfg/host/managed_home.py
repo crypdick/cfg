@@ -67,7 +67,7 @@ def resolve_host_home_plan(*, cfg_root: Path, host: str, enabled_owner_ids: list
     return HomePlan(desired=desired, all_known_rels=all_rels)
 
 
-def managed_home_roots(cfg_root: Path, host: str) -> list[Path]:
+def managed_home_roots(cfg_root: Path) -> list[Path]:
     """
     Roots used as "ownership markers" for managed symlinks.
     """

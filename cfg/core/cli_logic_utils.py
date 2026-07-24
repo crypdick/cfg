@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
 
 from cfg.core.scope import Scope
 
@@ -36,7 +35,7 @@ def format_features_list(features: Iterable[str]) -> list[str]:
     return lines
 
 
-def format_sourced_paths_list(*, header: str, desired: Any) -> list[str]:
+def format_sourced_paths_list(*, header: str, desired: Mapping[Path, object]) -> list[str]:
     """
     Format a mapping of relpath -> object with `.owner` and `.src` attrs.
 

@@ -10,6 +10,7 @@ from cfg.core.models import HostSettings, RepoSettings, SshSettings
 class HostSettingsLike(Protocol):
     # Mirrors the subset of HostSettings consumed by runtime inventory generation.
     name: str
+    features: list[str]
     repos: dict[str, Path]
     vars: dict[str, Any]
     ssh: SshSettings | None

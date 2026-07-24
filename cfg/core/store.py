@@ -19,7 +19,7 @@ _CFG_TOML_HEADER = """\
 
 
 class InventoryStore:
-    def __init__(self, cfg_root: Path):
+    def __init__(self, cfg_root: Path) -> None:
         self.cfg_root = cfg_root
         self._inventory: Inventory | None = None
 

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "beartype",
+    "jinja2>=3.1.6",
     "pydantic",
     "pyinfra",
     "tomli-w>=1.2.0",
@@ -13,9 +14,20 @@ dependencies = [
 ]
 
 [dependency-groups]
+dev = [
+    "deptry>=0.25.1",
+    "flynt>=1.0.6",
+    "mypy>=2.3.0",
+    "prek>=0.4.10",
+    "pyupgrade>=3.21.2",
+    "ruff>=0.15.22",
+    "vulture>=2.16",
+]
 test = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
+    "pytest-timeout",
+    "pytest-xdist",
 ]
 
 [project.scripts]
@@ -37,59 +49,164 @@ line-length = 110
 target-version = "py313"
 
 [tool.ruff.lint]
+preview = true
+explicit-preview-rules = true
 select = [
-    "E", "W", "F", "I", "B", "UP",       # existing rules
-    "S",                                    # flake8-bandit (security)
-    "C4",                                   # flake8-comprehensions
-    "SIM",                                  # flake8-simplify
-    "TCH",                                  # flake8-type-checking
-    "RUF",                                  # ruff-specific rules
-    "PT",                                   # flake8-pytest-style
-    "PERF",                                 # perflint
-    "ERA",                                  # eradicate (commented-out code)
-    "T20",                                  # flake8-print
-    "DTZ",                                  # flake8-datetimez
-    "FURB",                                 # refurb (modern Python idioms)
-    "PIE",                                  # misc lints
-    "FLY",                                  # flynt (string join → f-string)
-    "RET",                                  # flake8-return
-    "PLW",                                  # pylint warnings
-    "BLE",                                  # flake8-blind-except
+    "A",
+    "ANN001",
+    "ANN002",
+    "ANN003",
+    "ANN201",
+    "ANN202",
+    "ANN204",
+    "ANN205",
+    "ANN206",
+    "ANN401",
+    "ARG",
+    "ASYNC",
+    "B",
+    "BLE",
+    "C4",
+    "COM818",
+    "C90",
+    "D402",
+    "D414",
+    "D418",
+    "D419",
+    "DOC102",
+    "DOC202",
+    "DOC403",
+    "DTZ",
+    "E",
+    "ERA",
+    "EXE",
+    "F",
+    "FA",
+    "FBT",
+    "FLY",
+    "FURB101",
+    "FURB103",
+    "FURB122",
+    "FURB129",
+    "FURB132",
+    "FURB157",
+    "FURB161",
+    "FURB162",
+    "FURB168",
+    "FURB169",
+    "FURB171",
+    "FURB177",
+    "FURB181",
+    "FURB188",
+    "G",
+    "I",
+    "INP",
+    "ISC004",
+    "LOG",
+    "N",
+    "PERF",
+    "PGH",
+    "PIE",
+    "PLC",
+    "PLE",
+    "PLR0124",
+    "PLR0133",
+    "PLR0206",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR1702",
+    "PLR1704",
+    "PLR1711",
+    "PLR1714",
+    "PLR1716",
+    "PLR1722",
+    "PLR1733",
+    "PLR1736",
+    "PLR5501",
+    "PLW",
+    "PT",
+    "PTH",
+    "RET",
+    "RSE",
+    "RUF",
+    "S",
+    "SIM",
+    "SLF",
+    "SLOT",
+    "T10",
+    "T20",
+    "TC",
+    "TID",
+    "TRY004",
+    "TRY201",
+    "TRY203",
+    "TRY300",
+    "TRY400",
+    "TRY401",
+    "UP",
+    "W",
+    "YTT",
 ]
 ignore = [
-    "E501",       # line too long (handled by line-length setting)
-    "S101",       # assert used (we use assert in non-test code intentionally with beartype patterns)
-    "S603",       # subprocess call with shell=False (we control all inputs)
-    "S607",       # partial executable path in subprocess (intentional for system tools)
+    "E501",
+    # Lazy imports isolate optional pyinfra/CLI dependencies and monkeypatch seams.
+    "PLC0415",
+    # Orchestration APIs are keyword-only; request objects would add indirection.
+    "PLR0913",
+    "S101",
+    "S603",
+    "S607",
+    "TRY003",
 ]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "S101",       # assert is the whole point of tests
-    "S106",       # possible hardcoded password (test fixtures)
-    "S108",       # probable insecure temp file usage (test fixtures)
-    "T20",        # print in tests is fine for debugging
+    "ANN",
+    "ARG",
+    "C901",
+    "FBT",
+    "F841",
+    "INP001",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "S101",
+    "S106",
+    "S108",
+    "SLF",
+    "T20",
 ]
 "scripts/**/*.py" = [
-    "T20",        # scripts may legitimately print
-    "BLE001",     # scripts use broad except for user-facing error reporting
+    "BLE001",
+    "C901",
+    "PLR0912",
+    "PLR0915",
+    "S603",
+    "S607",
+    "T20",
+    "INP001",
 ]
-"main.py" = [
-    "T20",        # CLI entry point
-]
-"cfg/**/cli*.py" = [
-    "T20",        # CLI modules may use print via rich
-]
-"cfg/**/app.py" = [
-    "T20",        # Typer app modules
-]
+"main.py" = ["T20"]
+"cfg/**/cli*.py" = ["T20"]
+"cfg/**/app.py" = ["FBT", "T20"]
 "cfg/**/*.py" = [
-    "TCH",        # beartype_this_package() needs runtime imports, not TYPE_CHECKING
+    "TC",
 ]
+"cfg/pyinfra/**/*.py" = ["PLR0911", "PLR0912", "PLR0915", "PLR1702", "SLF001"]
+"cfg/host/sync_repos.py" = ["PLR0911"]
+
 [tool.ruff.format]
 quote-style = "double"
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
 strict_markers = true
 strict_config = true
 xfail_strict = true
@@ -99,22 +216,46 @@ filterwarnings = [
     "ignore::DeprecationWarning:gevent.*",
 ]
 addopts = [
+    "--no-header",
+    "-n",
+    "auto",
+    "-q",
     "--strict-markers",
     "--tb=short",
+    "--durations=5",
+    "--durations-min=1.0",
+    "--cov=cfg",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--failed-first",
 ]
+timeout = 20
+timeout_method = "signal"
 
 [tool.coverage.run]
+branch = true
 source = ["cfg"]
 omit = [
     "tests/*",
 ]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 86
 show_missing = true
 skip_empty = true
+exclude_also = [
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+]
 
 [tool.vulture]
+min_confidence = 80
+paths = ["cfg"]
 exclude = [".venv/"]
 ignore_decorators = [
     "@app.command",
@@ -138,3 +279,23 @@ ignore_names = [
     # Called via CLI flows but vulture still flags it.
     "write_repo_precommit",
 ]
+
+[tool.mypy]
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+show_error_codes = true
+pretty = true
+disable_error_code = ["call-arg", "no-untyped-call", "no-untyped-def"]
+
+[[tool.mypy.overrides]]
+module = ["pyinfra.*", "pyinfra_cli.*"]
+ignore_missing_imports = true
+disable_error_code = ["attr-defined"]
+
+[tool.deptry]
+extend_exclude = ["scripts/prek_hooks"]
+
+[tool.uv]
+# Security measure: wait three days before resolving newly published releases.
+exclude-newer = "3 days"

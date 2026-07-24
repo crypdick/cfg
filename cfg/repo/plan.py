@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import filecmp
-import os
 import shutil
 import stat
 import tempfile
@@ -70,13 +69,13 @@ def _safe_destination(*, repo_root: Path, rel: Path) -> Path:
         normalized = safe_relpath(rel.as_posix())
     except ValueError as e:
         raise CfgError(f"Unsafe managed repo path: {rel}") from e
-    if normalized == Path("."):
+    if normalized == Path():
         raise CfgError("Refusing to manage the repo root itself.")
     return repo_root / normalized
 
 
 def _resolved_link_target(path: Path) -> Path:
-    target = Path(os.readlink(path))
+    target = path.readlink()
     if not target.is_absolute():
         target = path.parent / target
     return target.resolve(strict=False)
@@ -123,7 +122,7 @@ def _validate_no_nested_destinations(desired: dict[Path, str], conflicts: list[s
     rels = set(desired)
     for rel in sorted(rels, key=lambda path: path.as_posix()):
         for parent in rel.parents:
-            if parent == Path("."):
+            if parent == Path():
                 break
             if parent in rels:
                 conflicts.append(

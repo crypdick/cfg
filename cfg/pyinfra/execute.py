@@ -29,9 +29,10 @@ def _get_timeout(env: dict[str, str] | None = None) -> int | None:
     if raw:
         try:
             val = int(raw)
-            return val if val > 0 else None
         except ValueError:
             pass
+        else:
+            return val if val > 0 else None
     return DEFAULT_PYINFRA_TIMEOUT
 
 

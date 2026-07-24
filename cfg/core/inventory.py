@@ -169,19 +169,19 @@ def load_inventory(cfg_root: Path) -> Inventory:
 
     for p in _iter_settings_files(inventory_hosts, depth=2):
         hs = _load_host_from_toml(hosts_dir=inventory_hosts, path=p)
-        existing = hosts.get(hs.name)
-        if existing is not None:
+        existing_host = hosts.get(hs.name)
+        if existing_host is not None:
             raise CfgError(
-                f"Duplicate host name in inventory:\n- name: {hs.name}\n- {existing.source_path}\n- {p}\n"
+                f"Duplicate host name in inventory:\n- name: {hs.name}\n- {existing_host.source_path}\n- {p}\n"
             )
         hosts[hs.name] = Loaded(settings=hs, source_path=p)
 
     for p in _iter_settings_files(inventory_repos, depth=3):
         rs = _load_repo_from_toml(repos_dir=inventory_repos, path=p)
-        existing = repos.get(rs.id)
-        if existing is not None:
+        existing_repo = repos.get(rs.id)
+        if existing_repo is not None:
             raise CfgError(
-                f"Duplicate repo id in inventory:\n- id: {rs.id}\n- {existing.source_path}\n- {p}\n"
+                f"Duplicate repo id in inventory:\n- id: {rs.id}\n- {existing_repo.source_path}\n- {p}\n"
             )
         repos[rs.id] = Loaded(settings=rs, source_path=p)
 

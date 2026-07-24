@@ -101,8 +101,7 @@ def _ensure_precommit_installed(*, repo_root: Path, cfg_root: Path) -> list[str]
     # If a user has a custom hook, don't clobber it.
     if hook_path.exists() and not (is_cfg_hook or is_precommit_hook):
         return [
-            "note: repo has a custom .git/hooks/pre-commit; skipping `uvx pre-commit install` "
-            "(run `uvx pre-commit install --overwrite` manually if desired)."
+            "note: repo has a custom .git/hooks/pre-commit; skipping `uvx pre-commit install` (run `uvx pre-commit install --overwrite` manually if desired)."
         ]
 
     run_cmd(["uvx", "pre-commit", "install", "--install-hooks", "--overwrite"], cwd=repo_root, check=True)

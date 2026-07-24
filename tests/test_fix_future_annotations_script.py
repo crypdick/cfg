@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def _run_fix(repo_root: Path, relpath: str) -> subprocess.CompletedProcess[str]:
-    script = Path(__file__).resolve().parents[1] / "scripts" / "fix_future_annotations.py"
+    script = Path(__file__).resolve().parents[1] / "scripts" / "prek_hooks" / "fix_future_annotations.py"
     assert script.is_file()
     return subprocess.run(
         [sys.executable, str(script), relpath],

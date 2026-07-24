@@ -5,9 +5,9 @@ from pathlib import Path
 
 from cfg.core.errors import CfgError
 from cfg.core.inventory import Inventory
-from cfg.core.models import HostSettings
 from cfg.core.owners.manifest_io import load_owner_manifest_index
 from cfg.core.owners.models import OwnerManifest
+from cfg.core.protocols import HostSettingsLike
 from cfg.core.scope import Scope
 
 
@@ -188,7 +188,7 @@ def resolve_host_owner_ids_for_host(
     *,
     cfg_root: Path,
     cfg_inventory: Inventory,
-    host_settings: HostSettings,
+    host_settings: HostSettingsLike,
 ) -> list[str]:
     """
     Compute host-effective owner ids for host-scoped deploys.
