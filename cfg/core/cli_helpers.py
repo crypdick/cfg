@@ -10,7 +10,7 @@ from cfg.core.models import safe_relpath
 from cfg.core.special_files import storage_rel_from_logical_rel
 
 
-def resolve_relative_user_path(base_dir: Path, user_path: str, expand_user: bool = False) -> Path:
+def resolve_relative_user_path(base_dir: Path, user_path: str, *, expand_user: bool = False) -> Path:
     """
     Normalize a user-provided path into a base-relative Path.
 

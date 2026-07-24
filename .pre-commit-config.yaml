@@ -57,7 +57,7 @@ repos:
     hooks:
       - id: fix-future-annotations
         name: fix __future__ annotations placement
-        entry: uv run python scripts/fix_future_annotations.py
+        entry: uv run python scripts/prek_hooks/fix_future_annotations.py
         language: system
         pass_filenames: true
         files: \.py$

@@ -74,9 +74,9 @@ def check_generated_file_drift(
         actual = actual_raw.rstrip() + "\n"
     else:
         p = repo_root / rel
-        actual = (p.read_text(encoding="utf-8").rstrip() + "\n") if p.is_file() else None
-        if actual is None:
+        if not p.is_file():
             return
+        actual = p.read_text(encoding="utf-8").rstrip() + "\n"
 
     if actual == expected:
         return

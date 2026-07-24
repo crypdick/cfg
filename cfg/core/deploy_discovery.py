@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 from cfg.core.owners import feature_manifest_path
 
@@ -35,7 +36,8 @@ def discover_feature_deploy(cfg_root: Path, owner_id: str) -> Callable[[], None]
         if spec and spec.loader:
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            if hasattr(mod, "main"):
-                return mod.main
+            candidate = getattr(mod, "main", None)
+            if callable(candidate):
+                return cast(Callable[[], None], candidate)
 
     return None

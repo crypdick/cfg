@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -119,7 +118,7 @@ def test_resolve_existing_user_path_validates_exists_and_refuses_symlink(tmp_pat
         )
 
     link = base_dir / "link.txt"
-    os.symlink(base_dir / "f.txt", link)
+    Path(link).symlink_to(base_dir / "f.txt")
     with pytest.raises(typer.BadParameter, match="Refusing to copy a symlink"):
         resolve_existing_user_path(
             base_dir=base_dir,

@@ -52,6 +52,7 @@ def test_host_data_flattens_vars_without_overwriting_reserved_keys(
 
     fake = SimpleNamespace(
         name="h1",
+        features=[],
         repos={"owner/repo": tmp_path / "repo"},
         vars={"a": 1, "_cfg_host_name": "nope"},
         ssh=SshSettings(host="1.2.3.4", user="me", port=2222),

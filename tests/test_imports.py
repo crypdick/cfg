@@ -31,10 +31,11 @@ def _module_exists(full_name: str) -> bool:
     """Check if a module actually exists (not just a namespace collision)."""
     try:
         spec = importlib.util.find_spec(full_name)
-        return spec is not None
     except ModuleNotFoundError:
         # Namespace package collision (e.g., cfg.pyinfra vs pyinfra library)
         return False
+    else:
+        return spec is not None
 
 
 def _import_submodules(package: str | ModuleType) -> dict[str, ModuleType]:

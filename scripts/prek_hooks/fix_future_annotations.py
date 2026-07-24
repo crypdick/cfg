@@ -92,7 +92,7 @@ def _fix_file(path: Path) -> bool:
     raw = path.read_text(encoding="utf-8")
     nl = _detect_newline_style(raw)
     text = raw.replace("\r\n", "\n")
-    lines = text.splitlines(True)  # keep ends
+    lines = text.splitlines(keepends=True)
 
     target = "from __future__ import annotations\n"
 
@@ -129,7 +129,7 @@ def _fix_file(path: Path) -> bool:
 
 
 def _iter_target_files(repo_root: Path, argv: list[str]) -> list[Path]:
-    # When invoked by pre-commit, file paths are passed as argv.
+    # When invoked by prek, file paths are passed as argv.
     # We only touch the provided files to avoid repo-wide churn.
     if argv:
         out: list[Path] = []
@@ -171,7 +171,7 @@ def main(argv: list[str]) -> int:
         print("[fix_future_annotations] updated files:")
         for p in changed:
             print(f"- {p}")
-        # Non-zero so pre-commit stops and user can re-run / re-stage.
+        # Non-zero so prek stops and the user can re-run and re-stage.
         return 1
     return 0
 

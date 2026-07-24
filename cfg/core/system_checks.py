@@ -70,9 +70,10 @@ def _check_update_alternatives_configured() -> bool:
             text=True,
             check=False,
         )
-        return result.returncode == 0
     except OSError:
         return False
+    else:
+        return result.returncode == 0
 
 
 def ensure_gnu_stat_for_pyinfra() -> list[str]:

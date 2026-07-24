@@ -55,7 +55,12 @@ def resolve_targets(inv: Inventory, selector: str) -> list[str]:
 
     # de-dup preserving order
     seen: set[str] = set()
-    return [t for t in out if not (t in seen or seen.add(t))]
+    unique: list[str] = []
+    for target in out:
+        if target not in seen:
+            seen.add(target)
+            unique.append(target)
+    return unique
 
 
 def _get_inventory_path(

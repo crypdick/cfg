@@ -23,7 +23,6 @@ import pprint
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
 
 from cfg.core.inventory import Inventory
 from cfg.core.models import dedupe_preserve_order
@@ -32,8 +31,11 @@ from cfg.core.protocols import HostSettingsLike
 from cfg.deploys.host_data import CFG_HOST_NAME, CFG_HOST_OWNER_IDS, CFG_ROOT
 from cfg.pyinfra._vfork import VFORK_SOURCE_SNIPPET
 
+Host = tuple[str, dict[str, object]]
+HostGroup = list[str] | list[Host]
 
-def _jsonish(value: Any) -> Any:
+
+def _jsonish(value: object) -> object:
     """
     Convert values into a Python-literal-friendly structure for embedding into an
     inventory file.
@@ -65,8 +67,8 @@ def _jsonish(value: Any) -> Any:
     return str(value)
 
 
-def _host_data(*, settings: HostSettingsLike, cfg_root: Path, cfg_inventory: Inventory) -> dict[str, Any]:
-    data: dict[str, Any] = {}
+def _host_data(*, settings: HostSettingsLike, cfg_root: Path, cfg_inventory: Inventory) -> dict[str, object]:
+    data: dict[str, object] = {}
 
     data[CFG_HOST_NAME] = str(settings.name)
     data[CFG_HOST_OWNER_IDS] = resolve_host_owner_ids_for_host(
@@ -120,7 +122,7 @@ def build_groups(
     cfg_root: Path,
     current_host_for_local: str | None,
     include_local: bool,
-) -> dict[str, list[Any]]:
+) -> dict[str, HostGroup]:
     """
     Build a pyinfra inventory "groups" dict suitable for embedding into an
     inventory file. Values are either:
@@ -129,7 +131,7 @@ def build_groups(
     """
 
     # We'll store per-host data in the `all` group as (name, data) tuples.
-    all_hosts: list[Any] = []
+    all_hosts: list[Host] = []
 
     # Additional groups: group_name -> [host_name, ...]
     groups: dict[str, list[str]] = {}
@@ -149,7 +151,7 @@ def build_groups(
 
     # Optional local host alias with the current host's data/groups.
     if include_local:
-        local_data: dict[str, Any] = {CFG_HOST_NAME: str(current_host_for_local or "")}
+        local_data: dict[str, object] = {CFG_HOST_NAME: str(current_host_for_local or "")}
         local_settings = cfg_inventory.host_get(current_host_for_local) if current_host_for_local else None
         if local_settings:
             local_data = _host_data(settings=local_settings, cfg_root=cfg_root, cfg_inventory=cfg_inventory)
@@ -173,7 +175,7 @@ def build_groups(
                 _add_host_to_group(groups, g, local_name)
 
     # Build final dict with deterministic ordering and de-duped host lists.
-    out: dict[str, list[Any]] = {"all": all_hosts}
+    out: dict[str, HostGroup] = {"all": all_hosts}
     for group_name in sorted(groups):
         out[group_name] = dedupe_preserve_order(groups[group_name])
 
@@ -182,7 +184,7 @@ def build_groups(
 
 def write_inventory_file(
     *,
-    groups: dict[str, Any],
+    groups: dict[str, HostGroup],
     header_lines: list[str] | None = None,
 ) -> tuple[Path, Path]:
     """
