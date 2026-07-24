@@ -32,7 +32,7 @@ generated = []
 
     idx = load_owner_manifest_index(cfg_root)
     assert set(idx.keys()) == {"repo/feature/uv"}
-    assert idx["repo/feature/uv"].deps.requires == ["host/feature/uv"]
+    assert idx["repo/feature/uv"].requires == ("host/feature/uv",)
 
 
 def test_resolve_owners_expands_requires_and_orders_deps_first(tmp_path: Path) -> None:
@@ -132,6 +132,6 @@ features = []
     )
 
     idx = load_owner_manifest_index(cfg_root)
-    assert idx["repo/me/proj"].generated == []
+    assert idx["repo/me/proj"].generated == ()
     files = owner_overlay_files(cfg_root=cfg_root, owner_id="repo/me/proj")
     assert [item.rel.as_posix() for item in files] == [".cursor/rules/x.mdc"]

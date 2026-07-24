@@ -13,12 +13,13 @@ Destination relpaths are inferred directly from the files under `overlay/` and
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from cfg.core.errors import CfgError
 from cfg.core.fs import iter_files
+from cfg.core.ids import OwnerId
 from cfg.core.owners import load_owner_manifest_index, owner_id_to_dir
 from cfg.core.special_files import logical_rel_from_storage_rel
 
@@ -39,19 +40,19 @@ def _owner_payload_files(*, owner_dir: Path, mode_dirname: str) -> list[tuple[Pa
     ]
 
 
-def owner_overlay_files(*, cfg_root: Path, owner_id: str) -> list[OwnerFile]:
+def owner_overlay_files(*, cfg_root: Path, owner_id: OwnerId) -> list[OwnerFile]:
     owner_dir = owner_id_to_dir(cfg_root, owner_id)
     pairs = _owner_payload_files(owner_dir=owner_dir, mode_dirname="overlay")
     return [OwnerFile(owner=owner_id, src=src, rel=rel) for src, rel in pairs]
 
 
-def owner_mirror_files(*, cfg_root: Path, owner_id: str) -> list[OwnerFile]:
+def owner_mirror_files(*, cfg_root: Path, owner_id: OwnerId) -> list[OwnerFile]:
     owner_dir = owner_id_to_dir(cfg_root, owner_id)
     pairs = _owner_payload_files(owner_dir=owner_dir, mode_dirname="mirror")
     return [OwnerFile(owner=owner_id, src=src, rel=rel) for src, rel in pairs]
 
 
-def owner_render_root(*, cfg_root: Path, owner_id: str) -> Path:
+def owner_render_root(*, cfg_root: Path, owner_id: OwnerId) -> Path:
     return owner_id_to_dir(cfg_root, owner_id) / "render"
 
 
@@ -66,9 +67,9 @@ class ResolvedOwnerFiles:
 def resolve_owner_files(
     *,
     cfg_root: Path,
-    enabled_owner_ids: list[str],
-    file_getter: Callable[[Path, str], list[OwnerFile]],
-    path_provider_overrides: dict[str, str] | None = None,
+    enabled_owner_ids: Sequence[OwnerId],
+    file_getter: Callable[[Path, OwnerId], list[OwnerFile]],
+    path_provider_overrides: Mapping[str, str] | None = None,
     conflict_error_prefix: str = "Owner file conflict",
 ) -> ResolvedOwnerFiles:
     """

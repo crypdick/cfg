@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+from cfg.core.ids import FeatureName, RepoId, parse_feature_name, parse_repo_id
 from cfg.core.scope import Scope
 
 NO_CHANGE_ALREADY_PRESENT = "no change (already present)."
@@ -10,7 +11,12 @@ NO_CHANGE_NOT_PRESENT = "no change (not present)."
 NO_CHANGE_NOT_MANAGED = "no change (not managed)."
 
 
-def normalize_feature_name(feature: str, scope: Scope, *, allow_base: bool = False) -> str:
+def normalize_feature_name(
+    feature: str,
+    scope: Scope,
+    *,
+    allow_base: bool = False,
+) -> FeatureName:
     """Validate and return a scope-local short feature name."""
     f = str(feature).strip()
     if not f:
@@ -26,7 +32,7 @@ def normalize_feature_name(feature: str, scope: Scope, *, allow_base: bool = Fal
         raise ValueError(f"Use a short {scope.value} feature name without a scope prefix, got: {feature!r}")
     if not allow_base and f == "base":
         raise ValueError("Do not configure base; it is always enabled implicitly.")
-    return f
+    return parse_feature_name(f)
 
 
 def format_features_list(features: Iterable[str]) -> list[str]:
@@ -58,7 +64,7 @@ def format_sourced_paths_list(*, header: str, desired: Mapping[Path, object]) ->
 _INVALID_REPO_KV = "Invalid --repo value (expected 'owner/repo=/abs/path')"
 
 
-def parse_repo_kv(raw: str) -> tuple[str, Path]:
+def parse_repo_kv(raw: str) -> tuple[RepoId, Path]:
     """
     Parse a `--repo` CLI value of the form: `owner/repo=/abs/path`.
 
@@ -72,4 +78,8 @@ def parse_repo_kv(raw: str) -> tuple[str, Path]:
     repo_path = repo_path.strip()
     if not repo_id or not repo_path:
         raise ValueError(_INVALID_REPO_KV)
-    return repo_id, Path(repo_path).expanduser().resolve()
+    try:
+        parsed_repo_id = parse_repo_id(repo_id)
+    except ValueError as e:
+        raise ValueError(_INVALID_REPO_KV) from e
+    return parsed_repo_id, Path(repo_path).expanduser().resolve()

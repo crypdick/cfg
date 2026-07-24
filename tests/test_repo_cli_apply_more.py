@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -10,72 +9,6 @@ from tests.test_repo_cli_more import _init_git_repo, _setup_cfg_root, _write
 
 if TYPE_CHECKING:
     import pytest
-
-
-def test_repo_check_rejects_cursor_rules_under_repo_feature_when_not_nested(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg_root = _setup_cfg_root(tmp_path)
-    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    monkeypatch.delenv("GIT_INDEX_FILE", raising=False)
-    monkeypatch.delenv("GIT_DIR", raising=False)
-    monkeypatch.delenv("GIT_WORK_TREE", raising=False)
-
-    # Simulate committing inside the personalization repository itself.
-    _init_git_repo(cfg_root, repo_id=None)
-    monkeypatch.chdir(cfg_root)
-
-    bad = cfg_root / "features" / "repo" / "my-feature" / "overlay" / ".cursor" / "rules" / "not-nested.mdc"
-    _write(bad, "rule: nope\n")
-    subprocess.run(["git", "add", bad.as_posix()], cwd=str(cfg_root), check=True, capture_output=True)
-
-    import main
-
-    runner = CliRunner()
-    res = runner.invoke(main.app, ["repo", "check", "--staged"])
-    assert res.exit_code == 1
-    # Typer prints CfgError messages to stderr, but Click/Typer versions differ in how
-    # (or whether) stderr is exposed on the Result. The most robust assertion is against
-    # the exception string itself.
-    msg = str(res.exception or "")
-    assert "Invalid Cursor config layout under repo/feature payload(s)." in msg
-    assert "features/repo" in msg
-    assert "not-nested.mdc" in msg
-
-
-def test_repo_check_allows_cursor_rules_under_repo_feature_when_nested(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg_root = _setup_cfg_root(tmp_path)
-    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    monkeypatch.delenv("GIT_INDEX_FILE", raising=False)
-    monkeypatch.delenv("GIT_DIR", raising=False)
-    monkeypatch.delenv("GIT_WORK_TREE", raising=False)
-
-    _init_git_repo(cfg_root, repo_id=None)
-    monkeypatch.chdir(cfg_root)
-
-    good = (
-        cfg_root
-        / "features"
-        / "repo"
-        / "my-feature"
-        / "overlay"
-        / ".cursor"
-        / "rules"
-        / "my-feature"
-        / "ok.mdc"
-    )
-    _write(good, "rule: ok\n")
-    subprocess.run(["git", "add", good.as_posix()], cwd=str(cfg_root), check=True, capture_output=True)
-
-    import main
-
-    runner = CliRunner()
-    res = runner.invoke(main.app, ["repo", "check", "--staged"])
-    assert res.exit_code == 0, (res.output, res.exception)
 
 
 def test_repo_init_dry_run_prints_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

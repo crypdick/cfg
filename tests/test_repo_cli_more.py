@@ -263,6 +263,7 @@ features = ["uv"]
 
 def test_repo_link_delegates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg_root = _setup_cfg_root(tmp_path)
+    _write_feature_manifest(cfg_root=cfg_root, owner_id="repo/feature/python")
     monkeypatch.setenv("CFG_ROOT", str(cfg_root))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
 

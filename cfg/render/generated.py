@@ -15,6 +15,7 @@ Today implemented artifacts:
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
@@ -23,12 +24,13 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader
 
 from cfg.core.errors import CfgError
+from cfg.core.ids import OwnerId
 from cfg.core.owners import OwnerManifest, load_owner_manifest_index, owner_id_to_dir
 
 
 @dataclass(frozen=True)
 class GeneratedTarget:
-    owner: str
+    owner: OwnerId
     rel: Path  # destination relpath within the target scope
 
 
@@ -46,7 +48,7 @@ class TemplateWrite:
     - rel is repo/home relative, depending on the apply context.
     """
 
-    owner: str
+    owner: OwnerId
     rel: Path
     src: str | StringIO
     data: dict[str, Any]
@@ -60,15 +62,19 @@ DEFAULT_JINJA_ENV_KWARGS: dict[str, Any] = {
 }
 
 
-def _generated_from_manifest(*, owner_id: str, manifest: OwnerManifest) -> list[GeneratedTarget]:
+def _generated_from_manifest(
+    *,
+    owner_id: OwnerId,
+    manifest: OwnerManifest,
+) -> list[GeneratedTarget]:
     return [GeneratedTarget(owner=owner_id, rel=Path(str(path))) for path in manifest.generated]
 
 
 def resolve_generated_targets(
     *,
     cfg_root: Path,
-    enabled_owner_ids: list[str],
-    path_provider_overrides: dict[str, str] | None = None,
+    enabled_owner_ids: Sequence[OwnerId],
+    path_provider_overrides: Mapping[str, str] | None = None,
     conflict_error_prefix: str = "Generated artifact conflict",
 ) -> ResolvedGeneratedTargets:
     """
@@ -123,7 +129,12 @@ def resolve_generated_targets(
     return ResolvedGeneratedTargets(desired=desired)
 
 
-def _template_src_path_for_owner(*, cfg_root: Path, owner_id: str, rel: Path) -> Path:
+def _template_src_path_for_owner(
+    *,
+    cfg_root: Path,
+    owner_id: OwnerId,
+    rel: Path,
+) -> Path:
     """
     Convention for generated templates:
     - destination rel: <rel>
@@ -133,7 +144,12 @@ def _template_src_path_for_owner(*, cfg_root: Path, owner_id: str, rel: Path) ->
     return owner_dir / "render" / "templates" / f"{rel.as_posix()}.j2"
 
 
-def _template_fragment_root_for_owner(*, cfg_root: Path, owner_id: str, rel: Path) -> Path:
+def _template_fragment_root_for_owner(
+    *,
+    cfg_root: Path,
+    owner_id: OwnerId,
+    rel: Path,
+) -> Path:
     """
     Convention for template fragments for a generated output:
     - destination rel: <rel>
@@ -155,7 +171,7 @@ def _rel_to_cfg_root(*, cfg_root: Path, path: Path) -> str:
 def collect_template_fragments(
     *,
     cfg_root: Path,
-    enabled_owner_ids: list[str],
+    enabled_owner_ids: Sequence[OwnerId],
     rel: Path,
 ) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
     """
@@ -223,8 +239,8 @@ def render_repo_generated_template_writes(
     *,
     cfg_root: Path,
     repo_id: str,
-    enabled_owner_ids: list[str],
-    path_provider_overrides: dict[str, str] | None = None,
+    enabled_owner_ids: Sequence[OwnerId],
+    path_provider_overrides: Mapping[str, str] | None = None,
     only_rels: set[Path] | None = None,
 ) -> list[TemplateWrite]:
     """

@@ -10,6 +10,8 @@ Owner system core.
 
 from __future__ import annotations
 
+from cfg.core.ids import parse_owner_id
+
 # Keep owner-system imports available from one module.
 from cfg.core.owners.manifest_io import load_owner_manifest_index
 from cfg.core.owners.manifest_write import (
@@ -17,11 +19,14 @@ from cfg.core.owners.manifest_write import (
 )
 from cfg.core.owners.models import (
     FeatureManifest,
-    OwnerDeps,
-    OwnerInfo,
+    FeatureOwner,
+    HostOwner,
     OwnerManifest,
+    RepoOwner,
     default_owner_manifest,
     owner_id_from_feature_toml_path,
+    owner_scope,
+    parse_owner_ref,
 )
 from cfg.core.owners.paths import (
     feature_manifest_path,
@@ -38,9 +43,10 @@ from cfg.core.owners.resolution import (
 
 __all__ = [
     "FeatureManifest",
-    "OwnerDeps",
-    "OwnerInfo",
+    "FeatureOwner",
+    "HostOwner",
     "OwnerManifest",
+    "RepoOwner",
     "default_owner_manifest",
     "feature_manifest_path",
     "feature_manifest_to_bytes",
@@ -48,6 +54,9 @@ __all__ = [
     "load_owner_manifest_index",
     "owner_id_from_feature_toml_path",
     "owner_id_to_dir",
+    "owner_scope",
+    "parse_owner_id",
+    "parse_owner_ref",
     "resolve_host_owner_ids_for_host",
     "resolve_host_owner_ids_implied_by_repo",
     "resolve_owners",

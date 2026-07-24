@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from cfg.core.context import CfgContext
 from cfg.core.errors import CfgError
+from cfg.core.ids import OwnerId
 from cfg.core.owners import (
     resolve_host_owner_ids_implied_by_repo,
 )
@@ -41,7 +42,10 @@ _HOST_PREREQS: dict[str, _HostPrereq] = {
 }
 
 
-def _missing_host_prereqs(*, implied_host_owner_ids: list[str]) -> list[_HostPrereq]:
+def _missing_host_prereqs(
+    *,
+    implied_host_owner_ids: Sequence[OwnerId],
+) -> list[_HostPrereq]:
     missing: list[_HostPrereq] = []
     for oid in implied_host_owner_ids or []:
         prereq = _HOST_PREREQS.get(str(oid))
@@ -56,7 +60,7 @@ def _missing_host_prereqs(*, implied_host_owner_ids: list[str]) -> list[_HostPre
 def _ensure_host_for_repo_apply(
     *,
     ctx: CfgContext,
-    implied_host_owner_ids: list[str],
+    implied_host_owner_ids: Sequence[OwnerId],
     dry_run: bool = False,
 ) -> None:
     """

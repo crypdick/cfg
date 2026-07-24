@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from cfg.core.context import CfgContext
 from cfg.core.errors import CfgError
+from cfg.core.ids import parse_feature_name
 from cfg.core.owners.manifest_io import load_owner_manifest_index
 from cfg.core.scope import Scope
 
@@ -30,9 +31,10 @@ def require_feature_exists_in_manifest(
     idx = load_owner_manifest_index(ctx.root)
     prefix = scope.feature_prefix
 
-    owner_id = scope.feature_id(feature_id)
+    feature_name = parse_feature_name(feature_id)
+    owner_id = scope.feature_id(feature_name)
     if owner_id not in idx:
-        short_name = feature_id
+        short_name = feature_name
         available = sorted(k for k in idx if k.startswith(prefix))
         available_short = [scope.short_name(k) for k in available]
 
@@ -59,9 +61,10 @@ def require_feature_not_exists_in_manifest(
     """
     idx = load_owner_manifest_index(ctx.root)
 
-    owner_id = scope.feature_id(feature_id)
+    feature_name = parse_feature_name(feature_id)
+    owner_id = scope.feature_id(feature_name)
     if owner_id in idx:
-        short_name = feature_id
+        short_name = feature_name
         feature_path = scope.feature_dir(ctx.root, short_name)
         raise CfgError(
             f"Feature already exists: {short_name}\n"

@@ -21,10 +21,11 @@ from pyinfra.api.deploy import deploy
 from pyinfra.context import host
 from pyinfra.facts.files import Link
 from pyinfra.facts.server import Home
-from pyinfra.operations import files, server
+from pyinfra.operations import files
 
 from cfg.core.errors import CfgError
-from cfg.deploys.host_data import CFG_HOST_NAME, CFG_HOST_OWNER_IDS, cfg_root_from_host_data
+from cfg.core.ids import parse_host_name
+from cfg.deploys.host_data import CFG_HOST_NAME, cfg_root_from_host_data, owner_ids_from_host_data
 from cfg.host.deploys.feature_deploys import deploy_features
 from cfg.host.deploys.pkg import pkg_update, pkg_upgrade
 from cfg.host.managed_home import HomePlan, managed_home_roots, resolve_host_home_plan
@@ -104,27 +105,20 @@ def _apply_symlinks(*, home: str, desired: dict[Path, OwnerFile]) -> None:
 def deploy_apply_home() -> None:
     cfg_root = cfg_root_from_host_data()
 
-    # Install cfg tool from the local repo (editable) on local targets.
-    if host.name == "@local":
-        server.shell(
-            name="Install cfg tool (editable)",
-            commands=["uv tool install --force -e ."],
-            _chdir=str(cfg_root),
-        )
-
-    owner_ids_raw = host.data.get(CFG_HOST_OWNER_IDS) or []
-    if not isinstance(owner_ids_raw, list):
-        raise CfgError("host.data._cfg_host_owner_ids must be a list[str]")
-    owner_ids = [str(o).strip() for o in owner_ids_raw if str(o).strip()]
+    owner_ids = owner_ids_from_host_data()
 
     home = host.get_fact(Home)
     if not home:
         raise CfgError("Cannot determine home directory for host.")
 
     # Host identity for host-specific managed home files.
-    host_name = str(host.data.get(CFG_HOST_NAME) or "").strip()
-    if not host_name:
+    host_name_raw = str(host.data.get(CFG_HOST_NAME) or "").strip()
+    if not host_name_raw:
         raise CfgError("Missing host identity (host.data._cfg_host_name).")
+    try:
+        host_name = parse_host_name(host_name_raw)
+    except ValueError as e:
+        raise CfgError(f"Invalid host identity: {e}") from e
 
     plan: HomePlan = resolve_host_home_plan(cfg_root=cfg_root, host=host_name, enabled_owner_ids=owner_ids)
     roots = managed_home_roots(cfg_root)

@@ -57,11 +57,17 @@ cfg host apply --dry-run
 
 cfg repo settings
 cfg repo apply --dry-run
+
+cfg validate
 ```
 
 Host operations use pyinfra. Repo operations build and execute a deterministic local
 filesystem plan. Private `deploy.py` files are trusted Python extensions and run with
-the user's privileges.
+the user's privileges. `cfg host apply` is intentionally the one-shot host update:
+it applies managed files and deploys, refreshes package metadata, and upgrades packages.
+
+`cfg validate` parses and resolves the complete personalization repository without
+writing to hosts, repositories, or the configuration root.
 
 ## Documentation
 

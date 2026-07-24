@@ -78,7 +78,7 @@ def test_build_groups_includes_hosts_and_optional_local(
 
     host1 = HostSettings(
         name="h1",
-        features=["desktop", "_ignored", "  ", "desktop"],
+        features=["desktop", "desktop"],
         repos={"owner/repo": tmp_path / "repo"},
         vars={"x": "y"},
     )

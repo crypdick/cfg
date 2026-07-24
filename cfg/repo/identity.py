@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-from cfg.core.models import safe_repo_id_path
+from cfg.core.ids import RepoId, parse_repo_id
 from cfg.repo.git import origin_url
 
 
@@ -48,7 +48,7 @@ def _normalize_path(path: str) -> str:
     return path.rstrip("/")
 
 
-def repo_id_for_repo(repo_root: Path) -> str | None:
+def repo_id_for_repo(repo_root: Path) -> RepoId | None:
     """
     Resolve a stable repo id for a working tree.
 
@@ -61,11 +61,8 @@ def repo_id_for_repo(repo_root: Path) -> str | None:
     if url:
         cand = normalize_repo_id(url)
         try:
-            safe_repo_id_path(cand)
+            return parse_repo_id(cand)
         except ValueError:
-            cand = ""
-
-        if cand:
-            return cand
+            pass
 
     return None

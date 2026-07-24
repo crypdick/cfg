@@ -18,6 +18,17 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cfg.core.ids import (
+    FeatureName,
+    HostName,
+    OwnerId,
+    RepoId,
+    parse_feature_name,
+    parse_host_name,
+    parse_owner_id,
+    parse_repo_id,
+)
+
 
 def dedupe_preserve_order(items: list[str]) -> list[str]:
     """Dedupe a list of strings while preserving order. Strips and skips empty values."""
@@ -50,21 +61,21 @@ def safe_repo_id_path(repo_id: str) -> Path:
     Convert a normalized repo id like `owner/repo` into a safe Path for
     repo-specific storage inside the personalization repository.
     """
-    p = safe_relpath(repo_id)
-    if len(p.parts) != 2:
-        raise ValueError(f"Repo id must be `owner/repo`, got: {repo_id!r}")
-    return p
+    path = Path(repo_id)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"Unsafe repo id path: {repo_id!r}")
+    return Path(parse_repo_id(repo_id))
 
 
-def _validate_feature_list(features: list[str]) -> list[str]:
+def _parse_enabled_feature_list(features: list[str]) -> list[FeatureName]:
     out = dedupe_preserve_order(list(features))
+    parsed: list[FeatureName] = []
     for feature in out:
-        path = safe_relpath(feature)
-        if len(path.parts) != 1:
-            raise ValueError(f"Use a short feature name without a scope prefix: {feature!r}")
-        if feature == "base":
+        name = parse_feature_name(feature)
+        if name == "base":
             raise ValueError("Do not configure base explicitly; it is always enabled implicitly.")
-    return out
+        parsed.append(name)
+    return parsed
 
 
 class RepoSettings(BaseModel):
@@ -74,27 +85,22 @@ class RepoSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    id: str
+    id: RepoId
     # Optional origin remote URL (used for cloning/syncing and validation).
     # Example: "git@github.com:owner/repo.git"  # noqa: ERA001
     origin_url: str | None = None
     alias: str | None = None
     # Scope-local short feature names.
-    features: list[str] = Field(default_factory=list)
+    features: list[FeatureName] = Field(default_factory=list)
 
     # Explicit resolution for overlay path conflicts:
     # relpath (posix-like) -> feature name that should provide it.
-    path_provider_overrides: dict[str, str] = Field(default_factory=dict)
+    path_provider_overrides: dict[str, OwnerId] = Field(default_factory=dict)
 
     @field_validator("id")
     @classmethod
-    def _id_normalized_and_safe(cls, v: str) -> str:
-        v = str(v).strip()
-        if not v:
-            raise ValueError("Repo id must be non-empty")
-        # Only validate it's safe for path usage; identity normalization is handled elsewhere.
-        safe_repo_id_path(v)
-        return v
+    def _id_normalized_and_safe(cls, v: str) -> RepoId:
+        return parse_repo_id(v)
 
     @field_validator("origin_url")
     @classmethod
@@ -106,19 +112,18 @@ class RepoSettings(BaseModel):
 
     @field_validator("features")
     @classmethod
-    def _features_dedupe(cls, v: list[str]) -> list[str]:
-        return _validate_feature_list(v)
+    def _features_dedupe(cls, v: list[str]) -> list[FeatureName]:
+        return _parse_enabled_feature_list(v)
 
     @field_validator("path_provider_overrides")
     @classmethod
-    def _provider_overrides_safe(cls, v: dict[str, str]) -> dict[str, str]:
-        out: dict[str, str] = {}
+    def _provider_overrides_safe(cls, v: dict[str, str]) -> dict[str, OwnerId]:
+        out: dict[str, OwnerId] = {}
         for k, provider in (v or {}).items():
             rel = safe_relpath(str(k))
-            prov = str(provider).strip()
-            if not prov:
+            if not str(provider).strip():
                 raise ValueError(f"Empty provider for override path: {k!r}")
-            out[str(rel)] = prov
+            out[str(rel)] = parse_owner_id(provider)
         return out
 
 
@@ -137,39 +142,35 @@ class HostSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
+    name: HostName
     # Scope-local short feature names.
-    features: list[str] = Field(default_factory=list)
+    features: list[FeatureName] = Field(default_factory=list)
     ssh: SshSettings | None = None
 
     # Repo checkouts on this machine: repo_id -> local path
-    repos: dict[str, Path] = Field(default_factory=dict)
+    repos: dict[RepoId, Path] = Field(default_factory=dict)
 
     # Free-form vars for templating/pyinfra, etc.
     vars: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("name")
     @classmethod
-    def _host_name_nonempty(cls, v: str) -> str:
-        v = str(v).strip()
-        if not v:
-            raise ValueError("Host name must be non-empty")
-        return v
+    def _host_name_nonempty(cls, v: str) -> HostName:
+        return parse_host_name(v)
 
     @field_validator("features")
     @classmethod
-    def _features_dedupe(cls, v: list[str]) -> list[str]:
-        return _validate_feature_list(v)
+    def _features_dedupe(cls, v: list[str]) -> list[FeatureName]:
+        return _parse_enabled_feature_list(v)
 
     @field_validator("repos")
     @classmethod
-    def _repos_keys_safe(cls, v: dict[str, Path]) -> dict[str, Path]:
-        out: dict[str, Path] = {}
+    def _repos_keys_safe(cls, v: dict[str, Path]) -> dict[RepoId, Path]:
+        out: dict[RepoId, Path] = {}
         for repo_id, path in (v or {}).items():
-            rid = str(repo_id).strip()
-            if not rid:
+            if not str(repo_id).strip():
                 raise ValueError("Repo id key must be non-empty")
-            safe_repo_id_path(rid)
+            rid = parse_repo_id(repo_id)
             out[rid] = Path(path)
         return out
 
