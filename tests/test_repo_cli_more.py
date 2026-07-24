@@ -376,7 +376,7 @@ features = []
     monkeypatch.setattr(repo_check_logic, "resolved_repo_owner_ids", lambda **_kw: ["repo/feature/a"])
 
     called: dict[str, Any] = {}
-    monkeypatch.setattr(repo_check_logic, "check_repo_precommit_drift", lambda **kw: called.update(kw))
+    monkeypatch.setattr(repo_check_logic, "check_generated_files_drift", lambda **kw: called.update(kw))
 
     runner = CliRunner()
     res = runner.invoke(main.app, ["repo", "check", "--staged"])

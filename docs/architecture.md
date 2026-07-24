@@ -15,8 +15,8 @@ generic documentation/tests     -> personal operational data
 ```
 
 The tool never needs access to the private repository at build or publish time.
-The private repository does not vendor the tool. Their only contract is the versioned
-configuration schema and trusted deploy-file interface.
+The private repository does not vendor the tool. Their contract is the current
+configuration model and trusted deploy-file interface.
 
 ## Tool responsibilities
 
@@ -30,7 +30,6 @@ The tool repository owns:
 - safe, idempotent application;
 - rendering and drift checks;
 - pyinfra invocation for host workflows;
-- migration diagnostics for supported schema versions.
 
 It must contain useful examples, but no real personal inventory or payloads.
 
@@ -45,8 +44,7 @@ It must contain useful examples, but no real personal inventory or payloads.
   `cfg/owners/fs.py` maps those owners to overlay and mirror payloads.
 - `cfg/repo/` owns repository identity, attachment, planning, and safe local
   filesystem changes. `cfg/repo/plan.py` is the write boundary.
-- `cfg/render/` resolves templates and generated-file reports used by both
-  host and repository commands.
+- `cfg/render/` resolves repository templates and shared managed-file reports.
 - `cfg/host/` owns host-facing command logic, managed-home plans, repository
   synchronization, and pyinfra deploy composition.
 - `cfg/pyinfra/` is the pyinfra process boundary: it generates runtime
@@ -54,10 +52,8 @@ It must contain useful examples, but no real personal inventory or payloads.
 - `cfg/deploys/host_data.py` is the narrow typed adapter for data exposed to
   trusted private deploy files.
 
-The dependency graph is intentionally not a pure layer cake. For example,
-`cfg/core/context.py` resolves repository identity, while repo apply may invoke
-the host runner for declared host prerequisites. Enforcing a simplistic
-`core -> repo -> host` import order would encode a false architecture.
+The dependency graph is intentionally not a pure layer cake, but repo application and
+host mutation are separate boundaries: a repo command never invokes a host workflow.
 
 ## Load-bearing invariants
 
@@ -96,7 +92,6 @@ The default data root is `~/.cfg`.
       feature.toml
       overlay/
       mirror/
-      render/
       deploy.py
     repo/<feature>/
       feature.toml
@@ -170,9 +165,9 @@ sandbox it. The tool exposes only the small context contract needed by those dep
 Host-specific `hosts/<name>/deploy.py` entrypoints participate in the same resolved
 owner sequence as host feature deploys.
 
-`cfg host apply` deliberately remains a single host-update command. It applies home
-files and trusted deploys, then refreshes package metadata and upgrades installed
-packages.
+`cfg host apply` applies home files and trusted deploys. Package refresh and upgrades
+are an explicit second operation, `cfg host upgrade`, so routine configuration changes
+do not perform unrelated system-wide mutation.
 
 ## Managed-file model
 
@@ -183,7 +178,9 @@ Three modes remain:
 - **generated**: render target bytes from templates and fragments.
 
 The planner rejects multiple providers for the same destination unless the target config
-selects one explicitly. Cleanup removes only paths with verifiable cfg ownership.
+selects one explicitly. Repo apply persists the last-applied owner, mode, and content
+digest in the target's `.cfg/state.json`. Cleanup removes stale paths only while that
+evidence still matches; modified paths produce a conflict instead.
 
 Expanded per-host and per-repo manifests are not source data and have been removed. If
 cleanup needs a last-applied inventory, cfg stores minimal local state rather than a
@@ -199,7 +196,6 @@ committed duplicate of the desired tree.
   repository, renders configured generated outputs, and imports declared deploy
   entrypoints.
 - Strict static checking remains enabled.
-- Package-wide runtime type checking remains enabled.
 - The configured coverage percentage must not decrease.
 - Tests should emphasize behavior and safety rather than imports, wrappers, or branch
   execution solely for coverage.
@@ -208,5 +204,3 @@ committed duplicate of the desired tree.
 
 The executable name is `cfg`. Install from a Git checkout until a distribution is
 published. Packaging and publication do not change the tool-to-personalization boundary.
-
-Unsupported schema versions fail clearly instead of activating compatibility paths.

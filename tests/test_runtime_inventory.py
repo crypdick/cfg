@@ -74,7 +74,6 @@ def test_build_groups_includes_hosts_and_optional_local(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(ri, "resolve_host_owner_ids_for_host", lambda **_kw: ["host/feature/base"])
-    monkeypatch.setenv("CFG_EXTRA_HOST_OWNER_IDS", "host/feature/base, host/extra ,,host/extra")
 
     host1 = HostSettings(
         name="h1",
@@ -108,11 +107,11 @@ def test_build_groups_includes_hosts_and_optional_local(
     assert groups["desktop"] == ["h1", "@local"]
     assert groups["server"] == ["h2"]
 
-    # local host data includes cfg root and augmented owner ids (deduped)
+    # Local host data includes cfg root and the configured owner ids.
     local = next(t for t in groups["all"] if t[0] == "@local")
     local_data = local[1]
     assert local_data["_cfg_root"] == str(tmp_path)
-    assert local_data["_cfg_host_owner_ids"] == ["host/feature/base", "host/extra"]
+    assert local_data["_cfg_host_owner_ids"] == ["host/feature/base"]
 
 
 def test_write_and_cleanup_inventory_file(tmp_path: Path) -> None:

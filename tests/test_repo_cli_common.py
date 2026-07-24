@@ -60,9 +60,15 @@ def test_resolved_repo_owner_ids_plumbs_to_resolver(monkeypatch: pytest.MonkeyPa
 
     captured: dict[str, Any] = {}
 
-    def fake_resolve_repo_owner_ids(*, cfg_root: Path, enabled_repo_owner_ids: list[str]) -> list[str]:
+    def fake_resolve_repo_owner_ids(
+        *,
+        cfg_root: Path,
+        enabled_repo_owner_ids: list[str],
+        manifest_index: Any = None,
+    ) -> list[str]:
         captured["cfg_root"] = cfg_root
         captured["enabled"] = list(enabled_repo_owner_ids)
+        captured["manifest_index"] = manifest_index
         return ["repo/feature/x", "repo/feature/y"]
 
     monkeypatch.setattr(cc, "resolve_repo_owner_ids", fake_resolve_repo_owner_ids)
@@ -71,3 +77,4 @@ def test_resolved_repo_owner_ids_plumbs_to_resolver(monkeypatch: pytest.MonkeyPa
     assert result == ["repo/feature/x", "repo/feature/y"]
     assert captured["cfg_root"] == tmp_path
     assert captured["enabled"] == ["repo/o/r", "repo/feature/base", "repo/feature/x"]
+    assert captured["manifest_index"] is None

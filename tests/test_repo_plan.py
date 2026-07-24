@@ -5,8 +5,11 @@ from pathlib import Path
 import pytest
 
 from cfg.core.errors import CfgError
+from cfg.core.models import ManagedPathState, RepoStateManifest
+from cfg.core.state import read_repo_state
 from cfg.repo.plan import (
     LinkOverlay,
+    RemoveManaged,
     RemoveOverlay,
     apply_repo_plan,
     build_repo_apply_plan,
@@ -72,14 +75,110 @@ def test_plan_applies_all_modes_and_is_idempotent(tmp_path: Path) -> None:
     assert (repo_root / "linked.txt").resolve() == (owner_root / "overlay" / "linked.txt").resolve()
     assert (repo_root / "copied.txt").read_text(encoding="utf-8") == "copied\n"
     assert (repo_root / "rendered.txt").read_text(encoding="utf-8") == "hello owner/repo\n"
+    state = read_repo_state(repo_root)
+    assert {rel: item.kind for rel, item in state.managed.items()} == {
+        "copied.txt": "mirror",
+        "linked.txt": "overlay",
+        "rendered.txt": "generated",
+    }
 
     second_plan = build_repo_apply_plan(
         cfg_root=cfg_root,
         repo_root=repo_root,
         repo_id="owner/repo",
         enabled_owner_ids=["repo/feature/demo"],
+        previous_state=state,
     )
     assert apply_repo_plan(second_plan) == 0
+
+    prune_plan = build_repo_apply_plan(
+        cfg_root=cfg_root,
+        repo_root=repo_root,
+        repo_id="owner/repo",
+        enabled_owner_ids=[],
+        previous_state=read_repo_state(repo_root),
+    )
+    assert {operation.rel for operation in prune_plan.operations} == {
+        Path("linked.txt"),
+        Path("copied.txt"),
+        Path("rendered.txt"),
+    }
+    assert sum(isinstance(operation, RemoveManaged) for operation in prune_plan.operations) == 2
+    assert apply_repo_plan(prune_plan) == 3
+    assert not (repo_root / "linked.txt").exists()
+    assert not (repo_root / "copied.txt").exists()
+    assert not (repo_root / "rendered.txt").exists()
+    assert read_repo_state(repo_root).managed == {}
+
+
+@pytest.mark.parametrize("rel", ["linked.txt", "copied.txt", "rendered.txt"])
+def test_plan_refuses_to_prune_user_modified_managed_output(tmp_path: Path, rel: str) -> None:
+    cfg_root = tmp_path / "cfg"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    owner_root = _feature_root(cfg_root, "demo")
+    _write(
+        owner_root / "feature.toml",
+        _owner_manifest(
+            "repo/feature/demo",
+            overlay=["linked.txt"],
+            mirror=["copied.txt"],
+            generated=["rendered.txt"],
+        ),
+    )
+    _write(owner_root / "overlay" / "linked.txt", "linked\n")
+    _write(owner_root / "mirror" / "copied.txt", "copied\n")
+    _write(owner_root / "render" / "templates" / "rendered.txt.j2", "rendered\n")
+    initial_plan = build_repo_apply_plan(
+        cfg_root=cfg_root,
+        repo_root=repo_root,
+        repo_id="owner/repo",
+        enabled_owner_ids=["repo/feature/demo"],
+    )
+    apply_repo_plan(initial_plan)
+    state = read_repo_state(repo_root)
+
+    target = repo_root / rel
+    if target.is_symlink():
+        target.unlink()
+    _write(target, "user edit\n")
+
+    with pytest.raises(CfgError, match="stale"):
+        build_repo_apply_plan(
+            cfg_root=cfg_root,
+            repo_root=repo_root,
+            repo_id="owner/repo",
+            enabled_owner_ids=[],
+            previous_state=state,
+        )
+    assert target.read_text(encoding="utf-8") == "user edit\n"
+
+
+def test_plan_forgets_stale_state_when_output_is_already_absent(tmp_path: Path) -> None:
+    cfg_root = tmp_path / "cfg"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    previous_state = RepoStateManifest(
+        managed={
+            "gone.txt": ManagedPathState(
+                kind="mirror",
+                owner="repo/feature/demo",
+                digest="a" * 64,
+            )
+        }
+    )
+
+    plan = build_repo_apply_plan(
+        cfg_root=cfg_root,
+        repo_root=repo_root,
+        repo_id="owner/repo",
+        enabled_owner_ids=[],
+        previous_state=previous_state,
+    )
+
+    assert plan.operations == ()
+    assert apply_repo_plan(plan) == 0
+    assert read_repo_state(repo_root).managed == {}
 
 
 def test_plan_reports_all_worktree_conflicts_before_writing(tmp_path: Path) -> None:

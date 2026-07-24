@@ -6,7 +6,7 @@ Generated files are **not copied** from `mirror/` or symlinked from `overlay/`: 
 
 ## Concepts
 
-- **rel**: destination relative path within the target scope (repo-relative for `repo/*` owners, home-relative for `host/*` owners). Example: `.pre-commit-config.yaml`.
+- **rel**: destination path relative to the repository root. Example: `.pre-commit-config.yaml`.
 - **provider owner**: the owner whose feature metadata declares `generated = ["..."]` for a given `rel`. Exactly **one** provider is allowed per `rel` across enabled owners.
 - **template**: a Jinja2 template file that renders the final output.
 - **fragment**: any raw text file under `render/fragments/<rel>/...` that the template may use to build the output.
@@ -87,8 +87,8 @@ Each fragment dict includes:
 
 - **Repo writes**: rendered to strings while building the direct repo apply plan,
   then written atomically by the repo executor.
-- **Host writes**: rendered by the host pyinfra deploy.
-- **Drift checks**: may render the template to a string (Jinja2) to compare expected vs actual and show diffs.
+- **Drift checks**: render every configured output once and compare it with the
+  working tree or staged index, including missing files and staged deletions.
 
 ## Example: pre-commit config
 

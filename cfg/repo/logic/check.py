@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from cfg.core.context import CfgContext
 from cfg.repo.cli_common import resolved_repo_owner_ids
-from cfg.repo.generated_drift import check_repo_precommit_drift
+from cfg.repo.generated_drift import check_generated_files_drift
 from cfg.repo.git import repo_root
 
 
@@ -19,12 +19,18 @@ def check(*, staged: bool) -> None:
     if not cfg:
         return
 
-    owner_ids = resolved_repo_owner_ids(cfg_root=ctx.root, cfg=cfg)
-    check_repo_precommit_drift(
+    snapshot = ctx.snapshot
+    owner_ids = resolved_repo_owner_ids(
+        cfg_root=ctx.root,
+        cfg=cfg,
+        manifest_index=snapshot.manifest_index,
+    )
+    check_generated_files_drift(
         cfg_root=ctx.root,
         repo_root=rr,
         repo_id=rid,
         repo_cfg=cfg,
         enabled_owner_ids=owner_ids,
+        manifest_index=snapshot.manifest_index,
         staged=staged,
     )

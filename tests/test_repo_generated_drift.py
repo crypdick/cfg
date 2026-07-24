@@ -1,183 +1,153 @@
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 import pytest
 
 from cfg.core.errors import CfgError
 from cfg.core.models import RepoSettings
+from cfg.render.generated import TemplateWrite
 from cfg.repo import generated_drift as gd
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
-def test_check_generated_file_drift_returns_early_when_staged_and_not_in_index(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["other.txt"])
-    # If it doesn't early-return, we'd hit template rendering; guard by making that explode.
-    monkeypatch.setattr(
-        gd, "render_repo_generated_template_writes", lambda **_kw: (_ for _ in ()).throw(Exception("no"))
+
+def _write(
+    rel: str,
+    content: str,
+    *,
+    fragments: Sequence[str] = (),
+) -> TemplateWrite:
+    return TemplateWrite(
+        owner="repo/feature/test",
+        rel=Path(rel),
+        src=StringIO(content),
+        data={"fragment_files": [{"rel_to_cfg_root": fragment} for fragment in fragments]},
+        jinja_env_kwargs={},
     )
 
-    gd.check_generated_file_drift(
+
+def _check(
+    tmp_path: Path,
+    *,
+    staged: bool,
+) -> None:
+    gd.check_generated_files_drift(
         cfg_root=tmp_path,
         repo_root=tmp_path,
         repo_id="o/r",
         repo_cfg=RepoSettings(id="o/r"),
         enabled_owner_ids=[],
-        staged=True,
-        rel=Path("target.txt"),
+        staged=staged,
     )
 
 
-def test_check_generated_file_drift_returns_early_when_no_writes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["target.txt"])
+def test_no_generated_writes_are_valid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(gd, "render_repo_generated_template_writes", lambda **_kw: [])
+    monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["unrelated.txt"])
 
-    gd.check_generated_file_drift(
-        cfg_root=tmp_path,
-        repo_root=tmp_path,
-        repo_id="o/r",
-        repo_cfg=RepoSettings(id="o/r"),
-        enabled_owner_ids=[],
-        staged=True,
-        rel=Path("target.txt"),
-    )
+    _check(tmp_path, staged=True)
 
 
-def test_expected_generated_content_errors_when_multiple_writes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    class _W:
-        def __init__(self) -> None:
-            self.data = {}
-
-    monkeypatch.setattr(gd, "render_repo_generated_template_writes", lambda **_kw: [_W(), _W()])
-    monkeypatch.setattr(gd, "render_template_write_to_string", lambda _w: "x")
-
-    with pytest.raises(CfgError, match="Expected exactly one generated write"):
-        gd._expected_generated_content(
-            cfg_root=tmp_path,
-            repo_id="o/r",
-            enabled_owner_ids=[],
-            path_provider_overrides=None,
-            rel=Path("a.txt"),
-        )
-
-
-def test_check_generated_file_drift_staged_missing_content_returns(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["gen.txt"])
-    monkeypatch.setattr(
-        gd, "render_repo_generated_template_writes", lambda **_kw: [type("W", (), {"data": {}})()]
-    )
-    monkeypatch.setattr(gd, "render_template_write_to_string", lambda _w: "expected\n")
-    monkeypatch.setattr(gd, "staged_file_content", lambda _repo, _rel: None)
-
-    gd.check_generated_file_drift(
-        cfg_root=tmp_path,
-        repo_root=tmp_path,
-        repo_id="o/r",
-        repo_cfg=RepoSettings(id="o/r"),
-        enabled_owner_ids=[],
-        staged=True,
-        rel=Path("gen.txt"),
-    )
-
-
-def test_check_generated_file_drift_nonstaged_missing_file_returns(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_staged_check_ignores_unrelated_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        gd, "render_repo_generated_template_writes", lambda **_kw: [type("W", (), {"data": {}})()]
+        gd,
+        "render_repo_generated_template_writes",
+        lambda **_kw: [_write("generated.txt", "expected\n")],
     )
-    monkeypatch.setattr(gd, "render_template_write_to_string", lambda _w: "expected\n")
-
-    gd.check_generated_file_drift(
-        cfg_root=tmp_path,
-        repo_root=tmp_path,
-        repo_id="o/r",
-        repo_cfg=RepoSettings(id="o/r"),
-        enabled_owner_ids=[],
-        staged=False,
-        rel=Path("missing.txt"),
+    monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["unrelated.txt"])
+    monkeypatch.setattr(
+        gd,
+        "staged_file_content",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("unexpected staged read")),
     )
 
+    _check(tmp_path, staged=True)
 
-def test_check_generated_file_drift_nonstaged_equal_returns(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+
+def test_checks_every_generated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        gd,
+        "render_repo_generated_template_writes",
+        lambda **_kw: [
+            _write("first.txt", "first\n"),
+            _write("second.txt", "second\n"),
+        ],
+    )
+    (tmp_path / "first.txt").write_text("first\n", encoding="utf-8")
+    (tmp_path / "second.txt").write_text("second\n", encoding="utf-8")
+
+    _check(tmp_path, staged=False)
+
+
+@pytest.mark.parametrize("staged", [False, True])
+def test_missing_generated_output_is_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    staged: bool,
 ) -> None:
     monkeypatch.setattr(
-        gd, "render_repo_generated_template_writes", lambda **_kw: [type("W", (), {"data": {}})()]
+        gd,
+        "render_repo_generated_template_writes",
+        lambda **_kw: [_write("generated.txt", "expected\n")],
     )
-    monkeypatch.setattr(gd, "render_template_write_to_string", lambda _w: "same\n")
+    if staged:
+        monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["generated.txt"])
+        monkeypatch.setattr(gd, "staged_file_content", lambda _repo, _rel: None)
 
-    (tmp_path / "gen.txt").write_text("same\n", encoding="utf-8")
-    gd.check_generated_file_drift(
-        cfg_root=tmp_path,
-        repo_root=tmp_path,
-        repo_id="o/r",
-        repo_cfg=RepoSettings(id="o/r"),
-        enabled_owner_ids=[],
-        staged=False,
-        rel=Path("gen.txt"),
-    )
+    with pytest.raises(CfgError, match="missing or staged for deletion"):
+        _check(tmp_path, staged=staged)
 
 
-def test_check_repo_precommit_drift_passes_precommit_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_staged_empty_file_is_compared_not_treated_as_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: dict[str, Path] = {}
-
-    def fake_check(*, rel: Path, **_kw: Any) -> None:
-        captured["rel"] = rel
-
-    monkeypatch.setattr(gd, "check_generated_file_drift", fake_check)
-    gd.check_repo_precommit_drift(
-        cfg_root=tmp_path,
-        repo_root=tmp_path,
-        repo_id="o/r",
-        repo_cfg=RepoSettings(id="o/r"),
-        enabled_owner_ids=[],
-        staged=False,
+    monkeypatch.setattr(
+        gd,
+        "render_repo_generated_template_writes",
+        lambda **_kw: [_write("generated.txt", "expected\n")],
     )
-    assert captured["rel"].as_posix() == ".pre-commit-config.yaml"
+    monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["generated.txt"])
+    monkeypatch.setattr(gd, "staged_file_content", lambda _repo, _rel: "")
+
+    with pytest.raises(CfgError) as error:
+        _check(tmp_path, staged=True)
+
+    assert "missing or staged for deletion" not in str(error.value)
 
 
-def test_check_generated_file_drift_raises_with_diff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Force staged path match
-    monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["gen.txt"])
-
-    class _Write:
-        def __init__(self) -> None:
-            self.data = {
-                "fragment_files": [
-                    {"rel_to_cfg_root": "repos/x/fragment1"},
-                    {"rel_to_cfg_root": "repos/x/fragment2"},
-                ]
-            }
-
-    monkeypatch.setattr(gd, "render_repo_generated_template_writes", lambda **_kw: [_Write()])
-    monkeypatch.setattr(gd, "render_template_write_to_string", lambda _w: "expected\n")
+def test_drift_error_names_fragments_and_includes_diff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gd,
+        "render_repo_generated_template_writes",
+        lambda **_kw: [
+            _write(
+                "generated.txt",
+                "expected\n",
+                fragments=("repos/x/fragment1", "repos/x/fragment2"),
+            )
+        ],
+    )
+    monkeypatch.setattr(gd, "staged_paths", lambda _repo: ["generated.txt"])
     monkeypatch.setattr(gd, "staged_file_content", lambda _repo, _rel: "actual\n")
 
-    with pytest.raises(CfgError) as e:
-        gd.check_generated_file_drift(
-            cfg_root=tmp_path,
-            repo_root=tmp_path,
-            repo_id="o/r",
-            repo_cfg=RepoSettings(id="o/r"),
-            enabled_owner_ids=["repo/feature/x"],
-            staged=True,
-            rel=Path("gen.txt"),
-        )
+    with pytest.raises(CfgError) as error:
+        _check(tmp_path, staged=True)
 
-    msg = str(e.value)
-    assert "Managed generated file drift detected" in msg
-    assert "repos/x/fragment1" in msg
-    assert "Diff:" in msg
-    assert "expected (gen.txt from cfg)" in msg
-    assert "actual (gen.txt in repo)" in msg
+    message = str(error.value)
+    assert "Managed generated file drift detected" in message
+    assert "repos/x/fragment1" in message
+    assert "Diff:" in message
+    assert "expected (generated.txt from cfg)" in message
+    assert "actual (generated.txt in repo)" in message

@@ -20,7 +20,7 @@ from pathlib import Path
 from cfg.core.errors import CfgError
 from cfg.core.fs import iter_files
 from cfg.core.ids import OwnerId
-from cfg.core.owners import load_owner_manifest_index, owner_id_to_dir
+from cfg.core.owners import OwnerManifest, load_owner_manifest_index, owner_id_to_dir
 from cfg.core.special_files import logical_rel_from_storage_rel
 
 
@@ -69,6 +69,7 @@ def resolve_owner_files(
     cfg_root: Path,
     enabled_owner_ids: Sequence[OwnerId],
     file_getter: Callable[[Path, OwnerId], list[OwnerFile]],
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
     path_provider_overrides: Mapping[str, str] | None = None,
     conflict_error_prefix: str = "Owner file conflict",
 ) -> ResolvedOwnerFiles:
@@ -86,7 +87,8 @@ def resolve_owner_files(
         ResolvedOwnerFiles with desired files and all known relpaths
     """
     path_provider_overrides = dict(path_provider_overrides or {})
-    manifest_index = load_owner_manifest_index(cfg_root)
+    if manifest_index is None:
+        manifest_index = load_owner_manifest_index(cfg_root)
 
     # Collect providers per rel path.
     providers: dict[Path, list[OwnerFile]] = {}

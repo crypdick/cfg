@@ -7,7 +7,7 @@ linter cannot decide reliably.
 ## Preserve plan-before-write boundaries
 
 Resolve and validate a complete immutable plan before changing a target.
-`RepoApplyPlan`, `HomePlan`, and `PublishPlan` are the established pattern:
+`RepoApplyPlan` and `HomePlan` are the established pattern:
 planning code may inspect state, while a small apply boundary owns mutations.
 Do not interleave discovery and writes in a loop when the full conflict set can
 be found first.

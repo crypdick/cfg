@@ -23,6 +23,7 @@ from cfg.host.logic.managed import managed
 from cfg.host.logic.mirror import add_path, remove_path
 from cfg.host.logic.settings import settings
 from cfg.host.logic.sync_repos import sync_repos
+from cfg.host.logic.upgrade import upgrade
 from cfg.host.logic.workflows import run_workflow
 
 __all__ = [
@@ -42,4 +43,5 @@ __all__ = [
     "run_workflow",
     "settings",
     "sync_repos",
+    "upgrade",
 ]

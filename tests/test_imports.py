@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 # - Host pyinfra workflow files execute operations at module level (not importable)
 SKIP_PATTERNS = {
     "cfg.host.workflows.apply_home",
+    "cfg.host.workflows.upgrade_packages",
 }
 
 

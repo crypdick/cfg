@@ -54,6 +54,7 @@ cfg host current
 cfg host settings
 cfg host managed
 cfg host apply --dry-run
+cfg host upgrade --dry-run
 
 cfg repo settings
 cfg repo apply --dry-run
@@ -63,8 +64,12 @@ cfg validate
 
 Host operations use pyinfra. Repo operations build and execute a deterministic local
 filesystem plan. Private `deploy.py` files are trusted Python extensions and run with
-the user's privileges. `cfg host apply` is intentionally the one-shot host update:
-it applies managed files and deploys, refreshes package metadata, and upgrades packages.
+the user's privileges. `cfg host apply` applies managed home files and feature deploys;
+`cfg host upgrade` separately refreshes package metadata and upgrades installed packages.
+
+Repo apply records minimal ownership evidence in `.cfg/state.json`. When configuration
+stops managing a mirror, generated file, or overlay, cfg removes the stale output only
+if it still matches that evidence; user-modified replacements fail safely.
 
 `cfg validate` parses and resolves the complete personalization repository without
 writing to hosts, repositories, or the configuration root.

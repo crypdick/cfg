@@ -5,7 +5,6 @@ description = "Apply host and repository configuration from a separate personali
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "beartype",
     "jinja2>=3.1.6",
     "pydantic",
     "pyinfra",
@@ -276,8 +275,6 @@ ignore_names = [
     # Intentional side effects / global flags:
     "is_cli",
     "dont_write_bytecode",
-    # Called via CLI flows but vulture still flags it.
-    "write_repo_precommit",
 ]
 
 [tool.mypy]
@@ -286,10 +283,9 @@ warn_return_any = true
 warn_unused_configs = true
 show_error_codes = true
 pretty = true
-disable_error_code = ["call-arg", "no-untyped-call", "no-untyped-def"]
 
 [[tool.mypy.overrides]]
-module = ["pyinfra.*", "pyinfra_cli.*"]
+module = ["pyinfra.*"]
 ignore_missing_imports = true
 disable_error_code = ["attr-defined"]
 

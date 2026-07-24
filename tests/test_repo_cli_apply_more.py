@@ -76,7 +76,6 @@ features = []
     import main
 
     monkeypatch.setattr(repo_apply_logic, "resolved_repo_owner_ids", lambda **_kw: [])
-    monkeypatch.setattr(repo_apply_logic, "resolve_host_owner_ids_implied_by_repo", lambda **_kw: [])
 
     monkeypatch.setattr(repo_apply_logic, "run_cmd", lambda *_a, **_kw: " M x.py\n")
 
@@ -111,7 +110,6 @@ features = []
     import main
 
     monkeypatch.setattr(repo_apply_logic, "resolved_repo_owner_ids", lambda **_kw: [])
-    monkeypatch.setattr(repo_apply_logic, "resolve_host_owner_ids_implied_by_repo", lambda **_kw: [])
 
     from cfg.repo.plan import CopyMirror, RepoApplyPlan
 
@@ -247,7 +245,6 @@ features = []
 
     # Avoid depending on owner manifests for this test.
     monkeypatch.setattr(repo_apply_logic, "resolved_repo_owner_ids", lambda **_kw: [])
-    monkeypatch.setattr(repo_apply_logic, "resolve_host_owner_ids_implied_by_repo", lambda **_kw: [])
 
     from cfg.repo.plan import RepoApplyPlan
 
@@ -298,7 +295,6 @@ features = []
 
     # Avoid owner resolution complexity.
     monkeypatch.setattr(repo_apply_logic, "resolved_repo_owner_ids", lambda **_kw: [])
-    monkeypatch.setattr(repo_apply_logic, "resolve_host_owner_ids_implied_by_repo", lambda **_kw: [])
 
     # Don't mutate repo attachment in this test.
     monkeypatch.setattr(repo_apply_logic, "attach_repo", lambda **_kw: None)
@@ -359,7 +355,6 @@ features = []
     import main
 
     monkeypatch.setattr(repo_apply_logic, "resolved_repo_owner_ids", lambda **_kw: [])
-    monkeypatch.setattr(repo_apply_logic, "resolve_host_owner_ids_implied_by_repo", lambda **_kw: [])
     monkeypatch.setattr(repo_apply_logic, "attach_repo", lambda **_kw: None)
     monkeypatch.setattr(repo_apply_logic, "_uv_exists", lambda: True)
 

@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import filecmp
+import hashlib
 import shutil
 import stat
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from cfg.core.errors import CfgError
 from cfg.core.ids import OwnerId
-from cfg.core.models import safe_relpath
+from cfg.core.models import ManagedPathState, RepoStateManifest, safe_relpath
+from cfg.core.owners import OwnerManifest
+from cfg.core.state import read_repo_state, write_repo_state
 from cfg.owners.fs import (
     OwnerFile,
     ResolvedOwnerFiles,
+    owner_mirror_files,
     owner_overlay_files,
     resolve_owner_files,
 )
@@ -24,12 +28,19 @@ from cfg.render.generated import (
     render_repo_generated_template_writes,
     render_template_write_to_string,
 )
-from cfg.repo.publish import PublishPlan, resolve_repo_publish_files
 
 
 @dataclass(frozen=True)
 class RemoveOverlay:
     rel: Path
+
+
+@dataclass(frozen=True)
+class RemoveManaged:
+    owner: str
+    kind: str
+    rel: Path
+    expected_digest: str
 
 
 @dataclass(frozen=True)
@@ -53,7 +64,7 @@ class WriteGenerated:
     content: str
 
 
-RepoOperation = RemoveOverlay | LinkOverlay | CopyMirror | WriteGenerated
+RepoOperation = RemoveOverlay | RemoveManaged | LinkOverlay | CopyMirror | WriteGenerated
 
 
 @dataclass(frozen=True)
@@ -63,6 +74,7 @@ class RepoApplyPlan:
     cfg_root: Path
     repo_root: Path
     operations: tuple[RepoOperation, ...]
+    managed: dict[str, ManagedPathState] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -70,7 +82,7 @@ class RepoOutputs:
     """Configuration-derived repo outputs, before considering a working tree."""
 
     overlays: ResolvedOwnerFiles
-    mirrors: PublishPlan
+    mirrors: ResolvedOwnerFiles
     generated: tuple[TemplateWrite, ...]
 
 
@@ -79,6 +91,21 @@ def _overlay_file_getter(
     owner_id: OwnerId,
 ) -> list[OwnerFile]:
     return owner_overlay_files(cfg_root=cfg_root, owner_id=owner_id)
+
+
+def _mirror_file_getter(
+    cfg_root: Path,
+    owner_id: OwnerId,
+) -> list[OwnerFile]:
+    return owner_mirror_files(cfg_root=cfg_root, owner_id=owner_id)
+
+
+def _digest_bytes(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def _digest_file(path: Path) -> str:
+    return _digest_bytes(path.read_bytes())
 
 
 def _safe_destination(*, repo_root: Path, rel: Path) -> Path:
@@ -149,11 +176,26 @@ def _validate_no_nested_destinations(desired: dict[Path, str], conflicts: list[s
                 break
 
 
+def _validate_remove_managed(
+    *,
+    operation: RemoveManaged,
+    dest: Path,
+    conflicts: list[str],
+) -> None:
+    if not dest.exists() and not dest.is_symlink():
+        return
+    if dest.is_symlink() or not dest.is_file():
+        conflicts.append(f"{operation.rel} (stale managed destination is not a regular file)")
+    elif _digest_file(dest) != operation.expected_digest:
+        conflicts.append(f"{operation.rel} (stale {operation.kind} was modified after cfg last applied it)")
+
+
 def resolve_repo_outputs(
     *,
     cfg_root: Path,
     repo_id: str,
     enabled_owner_ids: Sequence[OwnerId],
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
     path_provider_overrides: Mapping[str, str] | None = None,
 ) -> RepoOutputs:
     """Resolve and validate all configured outputs without touching a repo."""
@@ -162,19 +204,24 @@ def resolve_repo_outputs(
         cfg_root=cfg_root,
         enabled_owner_ids=enabled_owner_ids,
         file_getter=_overlay_file_getter,
+        manifest_index=manifest_index,
         path_provider_overrides=overrides,
         conflict_error_prefix="Overlay conflict",
     )
-    mirrors = resolve_repo_publish_files(
+    mirrors = resolve_owner_files(
         cfg_root=cfg_root,
         enabled_owner_ids=enabled_owner_ids,
+        file_getter=_mirror_file_getter,
+        manifest_index=manifest_index,
         path_provider_overrides=overrides,
+        conflict_error_prefix="Mirror conflict",
     )
     generated = tuple(
         render_repo_generated_template_writes(
             cfg_root=cfg_root,
             repo_id=repo_id,
             enabled_owner_ids=enabled_owner_ids,
+            manifest_index=manifest_index,
             path_provider_overrides=overrides,
         )
     )
@@ -211,8 +258,15 @@ def _validate_operations(plan: RepoApplyPlan) -> None:
         _validate_parent_path(repo_root=plan.repo_root, rel=operation.rel, conflicts=conflicts)
 
         if isinstance(operation, RemoveOverlay):
-            if dest.is_symlink() and not _is_cfg_owned_overlay(path=dest, cfg_root=plan.cfg_root):
-                conflicts.append(f"{operation.rel} (stale symlink is no longer cfg-owned)")
+            if (dest.exists() or dest.is_symlink()) and not _is_cfg_owned_overlay(
+                path=dest,
+                cfg_root=plan.cfg_root,
+            ):
+                conflicts.append(f"{operation.rel} (stale overlay is no longer a cfg-owned symlink)")
+            continue
+
+        if isinstance(operation, RemoveManaged):
+            _validate_remove_managed(operation=operation, dest=dest, conflicts=conflicts)
             continue
 
         if isinstance(operation, LinkOverlay):
@@ -243,6 +297,8 @@ def build_repo_apply_plan(
     repo_root: Path,
     repo_id: str,
     enabled_owner_ids: Sequence[OwnerId],
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
+    previous_state: RepoStateManifest | None = None,
     path_provider_overrides: Mapping[str, str] | None = None,
 ) -> RepoApplyPlan:
     """Resolve all repo outputs and validate the complete plan without writing."""
@@ -250,6 +306,7 @@ def build_repo_apply_plan(
         cfg_root=cfg_root,
         repo_id=repo_id,
         enabled_owner_ids=enabled_owner_ids,
+        manifest_index=manifest_index,
         path_provider_overrides=path_provider_overrides,
     )
     overlays = outputs.overlays
@@ -257,7 +314,37 @@ def build_repo_apply_plan(
     generated_writes = outputs.generated
 
     operations: list[RepoOperation] = []
+    desired_state: dict[str, ManagedPathState] = {}
+    stale_overlay_rels: set[Path] = set()
+    desired_rels = {
+        *overlays.desired,
+        *mirrors.desired,
+        *(write.rel for write in generated_writes),
+    }
+
+    for raw_rel, prior in sorted((previous_state or RepoStateManifest()).managed.items()):
+        rel = safe_relpath(raw_rel)
+        if rel in desired_rels:
+            continue
+        dest = _safe_destination(repo_root=repo_root, rel=rel)
+        if not dest.exists() and not dest.is_symlink():
+            continue
+        if prior.kind == "overlay":
+            operations.append(RemoveOverlay(rel=rel))
+            stale_overlay_rels.add(rel)
+            continue
+        operations.append(
+            RemoveManaged(
+                owner=prior.owner,
+                kind=prior.kind,
+                rel=rel,
+                expected_digest=prior.digest,
+            )
+        )
+
     for rel in sorted(overlays.all_known_rels - overlays.desired.keys(), key=lambda path: path.as_posix()):
+        if rel in stale_overlay_rels:
+            continue
         dest = _safe_destination(repo_root=repo_root, rel=rel)
         if _is_cfg_owned_overlay(path=dest, cfg_root=cfg_root):
             operations.append(RemoveOverlay(rel=rel))
@@ -265,26 +352,40 @@ def build_repo_apply_plan(
     for rel, owner_file in sorted(overlays.desired.items(), key=lambda item: item[0].as_posix()):
         source = _validate_source(cfg_root=cfg_root, source=owner_file.src, label="Overlay")
         operations.append(LinkOverlay(owner=owner_file.owner, rel=rel, src=source))
+        desired_state[rel.as_posix()] = ManagedPathState(
+            kind="overlay",
+            owner=OwnerId(owner_file.owner),
+            digest=_digest_file(source),
+            source=str(source),
+        )
 
     for rel, owner_file in sorted(mirrors.desired.items(), key=lambda item: item[0].as_posix()):
         source = _validate_source(cfg_root=cfg_root, source=owner_file.src, label="Mirror")
         operations.append(CopyMirror(owner=owner_file.owner, rel=rel, src=source))
+        desired_state[rel.as_posix()] = ManagedPathState(
+            kind="mirror",
+            owner=OwnerId(owner_file.owner),
+            digest=_digest_file(source),
+            source=str(source),
+        )
 
     for write in generated_writes:
         if isinstance(write.src, str):
             _validate_source(cfg_root=cfg_root, source=Path(write.src), label="Generated template")
-        operations.append(
-            WriteGenerated(
-                owner=write.owner,
-                rel=write.rel,
-                content=render_template_write_to_string(write),
-            )
+        content = render_template_write_to_string(write)
+        operations.append(WriteGenerated(owner=write.owner, rel=write.rel, content=content))
+        desired_state[write.rel.as_posix()] = ManagedPathState(
+            kind="generated",
+            owner=write.owner,
+            digest=_digest_bytes(content.encode()),
+            source=str(write.src),
         )
 
     plan = RepoApplyPlan(
         cfg_root=cfg_root.resolve(),
         repo_root=repo_root.resolve(),
         operations=tuple(operations),
+        managed=desired_state,
     )
     _validate_operations(plan)
     return plan
@@ -328,6 +429,12 @@ def apply_repo_plan(plan: RepoApplyPlan) -> int:
                 changed += 1
             continue
 
+        if isinstance(operation, RemoveManaged):
+            if dest.exists() or dest.is_symlink():
+                dest.unlink()
+                changed += 1
+            continue
+
         dest.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(operation, LinkOverlay):
             if not dest.is_symlink():
@@ -339,6 +446,9 @@ def apply_repo_plan(plan: RepoApplyPlan) -> int:
                 changed += 1
         elif _write_generated(dest=dest, content=operation.content):
             changed += 1
+    state = read_repo_state(plan.repo_root)
+    state.managed = dict(plan.managed)
+    write_repo_state(plan.repo_root, state)
     return changed
 
 
@@ -348,6 +458,8 @@ def format_repo_plan(plan: RepoApplyPlan) -> list[str]:
     for operation in plan.operations:
         if isinstance(operation, RemoveOverlay):
             lines.append(f"- remove stale overlay: {operation.rel}")
+        elif isinstance(operation, RemoveManaged):
+            lines.append(f"- remove stale {operation.kind}: {operation.rel} ({operation.owner})")
         elif isinstance(operation, LinkOverlay):
             lines.append(f"- overlay: {operation.rel} <- {operation.src} ({operation.owner})")
         elif isinstance(operation, CopyMirror):

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from cfg.core.errors import CfgError
 from cfg.core.ids import OwnerId
+from cfg.core.inventory import Inventory, load_inventory
 from cfg.core.owners.models import (
     FeatureManifest,
     FeatureOwner,
@@ -51,7 +52,11 @@ def _load_feature_manifest(path: Path, *, owner_id: OwnerId) -> OwnerManifest:
     )
 
 
-def load_owner_manifest_index(cfg_root: Path) -> dict[OwnerId, OwnerManifest]:
+def load_owner_manifest_index(
+    cfg_root: Path,
+    *,
+    inventory: Inventory | None = None,
+) -> dict[OwnerId, OwnerManifest]:
     """Load feature manifests plus implicit host/repo-specific owners."""
     out: dict[OwnerId, OwnerManifest] = {}
     roots = [
@@ -72,9 +77,8 @@ def load_owner_manifest_index(cfg_root: Path) -> dict[OwnerId, OwnerManifest]:
                 raise CfgError(f"Duplicate feature manifest: {owner_id}\n- {path}")
             out[owner_id] = _load_feature_manifest(path, owner_id=owner_id)
 
-    from cfg.core.inventory import load_inventory
-
-    inventory = load_inventory(cfg_root)
+    if inventory is None:
+        inventory = load_inventory(cfg_root)
     for host_name in sorted(inventory.hosts):
         owner_id = parse_owner_ref(f"host/{host_name}").id
         out.setdefault(owner_id, default_owner_manifest(owner_id))

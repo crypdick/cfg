@@ -323,7 +323,7 @@ def test_host_managed_empty_prints_sections(tmp_path: Path, monkeypatch: pytest.
     assert res.exit_code == 0, (res.output, res.exception)
     assert "linked:" in res.output
     assert "mirrored:" in res.output
-    assert "generated:" in res.output
+    assert "generated:" not in res.output
 
 
 def test_host_add_dry_run_does_not_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -442,6 +442,33 @@ def test_host_apply_dry_run_passes_flag(tmp_path: Path, monkeypatch: pytest.Monk
     res = runner.invoke(main.app, ["host", "apply", "h1", "--dry-run"])
     assert res.exit_code == 0, (res.output, res.exception)
     assert called.get("dry_run") is True
+
+
+def test_host_upgrade_runs_separate_package_workflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg_root = _setup_cfg_root(tmp_path, host_hint="h1")
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    import cfg.host.logic.upgrade as host_upgrade_logic
+    import main
+    from cfg.host.cli_common import builtin_workflow_path
+
+    called: dict[str, Any] = {}
+    monkeypatch.setattr(host_upgrade_logic, "run_pyinfra", lambda **kw: called.update(kw))
+
+    runner = CliRunner()
+    init_result = runner.invoke(main.app, ["host", "init", "h1"])
+    assert init_result.exit_code == 0, (init_result.output, init_result.exception)
+
+    result = runner.invoke(main.app, ["host", "upgrade", "h1", "--dry-run"])
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert "packages planned." in result.output
+    assert called["deploy_file"] == builtin_workflow_path("upgrade_packages")
+    assert called["current_host_for_local"] == "h1"
+    assert called["dry_run"] is True
 
 
 def test_host_run_workflow_uses_named_workflow_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

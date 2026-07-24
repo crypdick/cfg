@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from cfg.core.context import CfgContext
 from cfg.core.errors import CfgError
 from cfg.core.ids import OwnerId, RepoId
 from cfg.core.models import RepoSettings
-from cfg.core.owners import RepoOwner, resolve_repo_owner_ids
+from cfg.core.owners import OwnerManifest, RepoOwner, resolve_repo_owner_ids
 from cfg.core.protocols import RepoCtxLike
 from cfg.core.scope import Scope
 from cfg.repo.git import repo_root
@@ -63,8 +64,17 @@ def repo_enabled_owner_ids(cfg: RepoSettings) -> list[OwnerId]:
     ]
 
 
-def resolved_repo_owner_ids(*, cfg_root: Path, cfg: RepoSettings) -> list[OwnerId]:
+def resolved_repo_owner_ids(
+    *,
+    cfg_root: Path,
+    cfg: RepoSettings,
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
+) -> list[OwnerId]:
     """
     Resolve repo owners with repo-scoped dependencies only.
     """
-    return resolve_repo_owner_ids(cfg_root=cfg_root, enabled_repo_owner_ids=repo_enabled_owner_ids(cfg))
+    return resolve_repo_owner_ids(
+        cfg_root=cfg_root,
+        enabled_repo_owner_ids=repo_enabled_owner_ids(cfg),
+        manifest_index=manifest_index,
+    )
