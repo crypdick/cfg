@@ -10,11 +10,13 @@ Precedence:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from cfg.core.errors import CfgError
 from cfg.core.fs import iter_files
+from cfg.core.ids import HostName, OwnerId
 from cfg.core.owners import load_owner_manifest_index
 from cfg.host.fs import host_home_root, host_specific_home_files
 from cfg.owners.fs import OwnerFile, owner_overlay_files
@@ -26,13 +28,18 @@ class HomePlan:
     all_known_rels: set[Path]
 
 
-def resolve_host_home_plan(*, cfg_root: Path, host: str, enabled_owner_ids: list[str]) -> HomePlan:
+def resolve_host_home_plan(
+    *,
+    cfg_root: Path,
+    host: HostName,
+    enabled_owner_ids: Sequence[OwnerId],
+) -> HomePlan:
     desired: dict[Path, OwnerFile] = {}
 
     manifest_index = load_owner_manifest_index(cfg_root)
 
     # Owner-provided home overlay files.
-    providers_by_rel: dict[Path, list[str]] = {}
+    providers_by_rel: dict[Path, list[OwnerId]] = {}
     for owner_id in enabled_owner_ids or []:
         if owner_id not in manifest_index:
             raise CfgError(f"Unknown owner (not in manifest index): {owner_id}")

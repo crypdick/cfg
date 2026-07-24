@@ -23,6 +23,9 @@ def test_safe_repo_id_path_requires_owner_repo() -> None:
         safe_repo_id_path("just-one-segment")
     with pytest.raises(ValueError, match="Unsafe"):
         safe_repo_id_path("../owner/repo")
+    for repo_id in ("owner//repo", "owner/./repo", "owner/repo/"):
+        with pytest.raises(ValueError, match="owner/repo"):
+            safe_repo_id_path(repo_id)
 
 
 def test_host_settings_dedupes_features_preserving_order() -> None:

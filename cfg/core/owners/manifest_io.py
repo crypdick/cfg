@@ -6,19 +6,20 @@ import tomllib
 from pathlib import Path
 
 from cfg.core.errors import CfgError
+from cfg.core.ids import OwnerId
 from cfg.core.owners.models import (
     FeatureManifest,
-    OwnerDeps,
-    OwnerInfo,
+    FeatureOwner,
     OwnerManifest,
     default_owner_manifest,
     owner_id_from_feature_toml_path,
+    parse_owner_ref,
 )
 from cfg.core.owners.paths import _host_features_root, _repo_features_root
 from cfg.core.scope import Scope
 
 
-def _load_feature_manifest(path: Path, *, owner_id: str) -> OwnerManifest:
+def _load_feature_manifest(path: Path, *, owner_id: OwnerId) -> OwnerManifest:
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, PermissionError, OSError, tomllib.TOMLDecodeError) as e:
@@ -29,29 +30,30 @@ def _load_feature_manifest(path: Path, *, owner_id: str) -> OwnerManifest:
     except (TypeError, ValueError) as e:
         raise CfgError(f"Invalid feature manifest content: {path}\n{e}") from e
 
-    if owner_id.startswith(Scope.HOST.feature_prefix):
-        scope = Scope.HOST
+    owner = parse_owner_ref(owner_id)
+    if not isinstance(owner, FeatureOwner):
+        raise CfgError(f"Invalid feature owner id: {owner_id}")
+    if owner.scope is Scope.HOST:
         if feature.host_requires:
             raise CfgError(f"Host feature cannot declare host_requires: {path}")
-    elif owner_id.startswith(Scope.REPO.feature_prefix):
-        scope = Scope.REPO
-    else:
-        raise CfgError(f"Invalid feature owner id: {owner_id}")
+        if feature.generated:
+            raise CfgError(f"Host feature cannot declare generated outputs: {path}")
 
-    requires = [scope.feature_id(name) for name in feature.requires]
-    if scope is Scope.REPO:
-        requires.extend(Scope.HOST.feature_id(name) for name in feature.host_requires)
-    conflicts = [scope.feature_id(name) for name in feature.conflicts]
+    requires = [FeatureOwner(scope=owner.scope, name=name).id for name in feature.requires]
+    if owner.scope is Scope.REPO:
+        requires.extend(FeatureOwner(scope=Scope.HOST, name=name).id for name in feature.host_requires)
+    conflicts = [FeatureOwner(scope=owner.scope, name=name).id for name in feature.conflicts]
     return OwnerManifest(
-        owner=OwnerInfo(id=owner_id),
-        deps=OwnerDeps(requires=requires, conflicts=conflicts),
-        generated=feature.generated,
+        owner=owner,
+        requires=tuple(requires),
+        conflicts=tuple(conflicts),
+        generated=tuple(feature.generated),
     )
 
 
-def load_owner_manifest_index(cfg_root: Path) -> dict[str, OwnerManifest]:
+def load_owner_manifest_index(cfg_root: Path) -> dict[OwnerId, OwnerManifest]:
     """Load feature manifests plus implicit host/repo-specific owners."""
-    out: dict[str, OwnerManifest] = {}
+    out: dict[OwnerId, OwnerManifest] = {}
     roots = [
         _host_features_root(cfg_root),
         _repo_features_root(cfg_root),
@@ -74,7 +76,9 @@ def load_owner_manifest_index(cfg_root: Path) -> dict[str, OwnerManifest]:
 
     inventory = load_inventory(cfg_root)
     for host_name in sorted(inventory.hosts):
-        out.setdefault(f"host/{host_name}", default_owner_manifest(f"host/{host_name}"))
+        owner_id = parse_owner_ref(f"host/{host_name}").id
+        out.setdefault(owner_id, default_owner_manifest(owner_id))
     for repo_id in sorted(inventory.repos):
-        out.setdefault(f"repo/{repo_id}", default_owner_manifest(f"repo/{repo_id}"))
+        owner_id = parse_owner_ref(f"repo/{repo_id}").id
+        out.setdefault(owner_id, default_owner_manifest(owner_id))
     return out

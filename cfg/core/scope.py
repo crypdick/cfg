@@ -12,6 +12,8 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 
+from cfg.core.ids import FeatureName, OwnerId
+
 
 class Scope(Enum):
     """A cfg-managed surface. The enum value is the bare kind string (`"host"`/`"repo"`)."""
@@ -25,9 +27,9 @@ class Scope(Enum):
         return f"{self.value}/feature/"
 
     @property
-    def base_feature_id(self) -> str:
+    def base_feature_id(self) -> OwnerId:
         """The implicit base feature owner id, e.g. `"host/feature/base"`."""
-        return f"{self.value}/feature/base"
+        return OwnerId(f"{self.value}/feature/base")
 
     def settings_dir(self, cfg_root: Path) -> Path:
         """Return the host or repo settings root."""
@@ -37,10 +39,10 @@ class Scope(Enum):
         """The directory of a feature by its short name (no prefix)."""
         return cfg_root / "features" / self.value / short_name
 
-    def feature_id(self, name: str) -> str:
+    def feature_id(self, name: FeatureName) -> OwnerId:
         """Full owner id for a feature name, prepending the prefix if absent."""
-        return name if name.startswith(self.feature_prefix) else f"{self.feature_prefix}{name}"
+        return OwnerId(f"{self.feature_prefix}{name}")
 
-    def short_name(self, feature_id: str) -> str:
+    def short_name(self, feature_id: OwnerId) -> FeatureName:
         """The bare feature name with this scope's prefix stripped."""
-        return feature_id.removeprefix(self.feature_prefix)
+        return FeatureName(feature_id.removeprefix(self.feature_prefix))

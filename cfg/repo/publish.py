@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from cfg.core.ids import OwnerId
 from cfg.owners.fs import OwnerFile, owner_mirror_files, resolve_owner_files
 
 
@@ -20,15 +22,15 @@ class PublishPlan:
     all_known_rels: set[Path]
 
 
-def _mirror_file_getter(cfg_root: Path, owner_id: str) -> list[OwnerFile]:
+def _mirror_file_getter(cfg_root: Path, owner_id: OwnerId) -> list[OwnerFile]:
     return owner_mirror_files(cfg_root=cfg_root, owner_id=owner_id)
 
 
 def resolve_repo_publish_files(
     *,
     cfg_root: Path,
-    enabled_owner_ids: list[str],
-    path_provider_overrides: dict[str, str] | None = None,
+    enabled_owner_ids: Sequence[OwnerId],
+    path_provider_overrides: Mapping[str, str] | None = None,
 ) -> PublishPlan:
     """
     Resolve publish file providers for a repo.

@@ -4,14 +4,15 @@ from pathlib import Path
 
 from cfg.core.context import CfgContext
 from cfg.core.errors import CfgError
+from cfg.core.ids import OwnerId, RepoId
 from cfg.core.models import RepoSettings
-from cfg.core.owners import resolve_repo_owner_ids
+from cfg.core.owners import RepoOwner, resolve_repo_owner_ids
 from cfg.core.protocols import RepoCtxLike
 from cfg.core.scope import Scope
 from cfg.repo.git import repo_root
 
 
-def require_ctx_repo_id(ctx: RepoCtxLike) -> str:
+def require_ctx_repo_id(ctx: RepoCtxLike) -> RepoId:
     if ctx.repo_id:
         return ctx.repo_id
     raise CfgError(
@@ -21,18 +22,23 @@ def require_ctx_repo_id(ctx: RepoCtxLike) -> str:
     )
 
 
-def repo_owner_id(repo_id: str) -> str:
-    return f"repo/{repo_id}"
+def repo_owner_id(repo_id: RepoId) -> OwnerId:
+    return RepoOwner(repo_id=repo_id).id
 
 
-def repo_ctx() -> tuple[CfgContext, Path, str]:
+def repo_ctx() -> tuple[CfgContext, Path, RepoId]:
     ctx = CfgContext.load()
     rr = repo_root()
     rid = require_ctx_repo_id(ctx)
     return ctx, rr, rid
 
 
-def require_registered_repo(ctx: RepoCtxLike, rid: str, *, include_hint: bool = False) -> RepoSettings:
+def require_registered_repo(
+    ctx: RepoCtxLike,
+    rid: RepoId,
+    *,
+    include_hint: bool = False,
+) -> RepoSettings:
     cfg = ctx.store.get_repo(rid)
     if cfg:
         return cfg
@@ -42,7 +48,7 @@ def require_registered_repo(ctx: RepoCtxLike, rid: str, *, include_hint: bool = 
     raise CfgError(f"Repo not registered: {rid}")
 
 
-def repo_enabled_owner_ids(cfg: RepoSettings) -> list[str]:
+def repo_enabled_owner_ids(cfg: RepoSettings) -> list[OwnerId]:
     """
     Enabled owner ids for a repo, derived from inventory.
 
@@ -57,7 +63,7 @@ def repo_enabled_owner_ids(cfg: RepoSettings) -> list[str]:
     ]
 
 
-def resolved_repo_owner_ids(*, cfg_root: Path, cfg: RepoSettings) -> list[str]:
+def resolved_repo_owner_ids(*, cfg_root: Path, cfg: RepoSettings) -> list[OwnerId]:
     """
     Resolve repo owners with repo-scoped dependencies only.
     """

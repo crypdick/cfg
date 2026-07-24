@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from cfg.core.errors import CfgError
+from cfg.core.ids import OwnerId
 from cfg.core.models import RepoSettings
 from cfg.render.generated import render_repo_generated_template_writes, render_template_write_to_string
 from cfg.repo.git import staged_file_content, staged_paths
@@ -12,8 +14,8 @@ def _expected_generated_content(
     *,
     cfg_root: Path,
     repo_id: str,
-    enabled_owner_ids: list[str],
-    path_provider_overrides: dict[str, str] | None,
+    enabled_owner_ids: Sequence[OwnerId],
+    path_provider_overrides: Mapping[str, str] | None,
     rel: Path,
 ) -> tuple[str, list[str]]:
     writes = render_repo_generated_template_writes(
@@ -43,7 +45,7 @@ def check_generated_file_drift(
     repo_root: Path,
     repo_id: str,
     repo_cfg: RepoSettings,
-    enabled_owner_ids: list[str],
+    enabled_owner_ids: Sequence[OwnerId],
     staged: bool,
     rel: Path,
 ) -> None:
@@ -111,7 +113,7 @@ def check_repo_precommit_drift(
     repo_root: Path,
     repo_id: str,
     repo_cfg: RepoSettings,
-    enabled_owner_ids: list[str],
+    enabled_owner_ids: Sequence[OwnerId],
     staged: bool,
 ) -> None:
     """

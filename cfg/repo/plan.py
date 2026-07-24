@@ -6,17 +6,25 @@ import filecmp
 import shutil
 import stat
 import tempfile
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from cfg.core.errors import CfgError
+from cfg.core.ids import OwnerId
 from cfg.core.models import safe_relpath
-from cfg.owners.fs import OwnerFile, owner_overlay_files, resolve_owner_files
+from cfg.owners.fs import (
+    OwnerFile,
+    ResolvedOwnerFiles,
+    owner_overlay_files,
+    resolve_owner_files,
+)
 from cfg.render.generated import (
+    TemplateWrite,
     render_repo_generated_template_writes,
     render_template_write_to_string,
 )
-from cfg.repo.publish import resolve_repo_publish_files
+from cfg.repo.publish import PublishPlan, resolve_repo_publish_files
 
 
 @dataclass(frozen=True)
@@ -57,9 +65,18 @@ class RepoApplyPlan:
     operations: tuple[RepoOperation, ...]
 
 
+@dataclass(frozen=True)
+class RepoOutputs:
+    """Configuration-derived repo outputs, before considering a working tree."""
+
+    overlays: ResolvedOwnerFiles
+    mirrors: PublishPlan
+    generated: tuple[TemplateWrite, ...]
+
+
 def _overlay_file_getter(
     cfg_root: Path,
-    owner_id: str,
+    owner_id: OwnerId,
 ) -> list[OwnerFile]:
     return owner_overlay_files(cfg_root=cfg_root, owner_id=owner_id)
 
@@ -132,6 +149,61 @@ def _validate_no_nested_destinations(desired: dict[Path, str], conflicts: list[s
                 break
 
 
+def resolve_repo_outputs(
+    *,
+    cfg_root: Path,
+    repo_id: str,
+    enabled_owner_ids: Sequence[OwnerId],
+    path_provider_overrides: Mapping[str, str] | None = None,
+) -> RepoOutputs:
+    """Resolve and validate all configured outputs without touching a repo."""
+    overrides = dict(path_provider_overrides or {})
+    overlays = resolve_owner_files(
+        cfg_root=cfg_root,
+        enabled_owner_ids=enabled_owner_ids,
+        file_getter=_overlay_file_getter,
+        path_provider_overrides=overrides,
+        conflict_error_prefix="Overlay conflict",
+    )
+    mirrors = resolve_repo_publish_files(
+        cfg_root=cfg_root,
+        enabled_owner_ids=enabled_owner_ids,
+        path_provider_overrides=overrides,
+    )
+    generated = tuple(
+        render_repo_generated_template_writes(
+            cfg_root=cfg_root,
+            repo_id=repo_id,
+            enabled_owner_ids=enabled_owner_ids,
+            path_provider_overrides=overrides,
+        )
+    )
+
+    desired_kinds: dict[Path, str] = {}
+    conflicts: list[str] = []
+    for kind, rels in (
+        ("overlay", overlays.desired),
+        ("mirror", mirrors.desired),
+        ("generated", {write.rel: write for write in generated}),
+    ):
+        for rel in rels:
+            previous = desired_kinds.get(rel)
+            if previous is not None:
+                conflicts.append(f"{rel} ({previous} vs {kind})")
+            else:
+                desired_kinds[rel] = kind
+    _validate_no_nested_destinations(desired_kinds, conflicts)
+    if conflicts:
+        details = "\n".join(f"- {conflict}" for conflict in sorted(set(conflicts)))
+        raise CfgError(f"Repo output conflict detected:\n{details}")
+
+    return RepoOutputs(
+        overlays=overlays,
+        mirrors=mirrors,
+        generated=generated,
+    )
+
+
 def _validate_operations(plan: RepoApplyPlan) -> None:
     conflicts: list[str] = []
     for operation in plan.operations:
@@ -170,47 +242,19 @@ def build_repo_apply_plan(
     cfg_root: Path,
     repo_root: Path,
     repo_id: str,
-    enabled_owner_ids: list[str],
-    path_provider_overrides: dict[str, str] | None = None,
+    enabled_owner_ids: Sequence[OwnerId],
+    path_provider_overrides: Mapping[str, str] | None = None,
 ) -> RepoApplyPlan:
     """Resolve all repo outputs and validate the complete plan without writing."""
-    overrides = dict(path_provider_overrides or {})
-    overlays = resolve_owner_files(
-        cfg_root=cfg_root,
-        enabled_owner_ids=enabled_owner_ids,
-        file_getter=_overlay_file_getter,
-        path_provider_overrides=overrides,
-        conflict_error_prefix="Overlay conflict",
-    )
-    mirrors = resolve_repo_publish_files(
-        cfg_root=cfg_root,
-        enabled_owner_ids=enabled_owner_ids,
-        path_provider_overrides=overrides,
-    )
-    generated_writes = render_repo_generated_template_writes(
+    outputs = resolve_repo_outputs(
         cfg_root=cfg_root,
         repo_id=repo_id,
         enabled_owner_ids=enabled_owner_ids,
-        path_provider_overrides=overrides,
+        path_provider_overrides=path_provider_overrides,
     )
-
-    desired_kinds: dict[Path, str] = {}
-    cross_mode_conflicts: list[str] = []
-    for kind, rels in (
-        ("overlay", overlays.desired),
-        ("mirror", mirrors.desired),
-        ("generated", {write.rel: write for write in generated_writes}),
-    ):
-        for rel in rels:
-            previous = desired_kinds.get(rel)
-            if previous is not None:
-                cross_mode_conflicts.append(f"{rel} ({previous} vs {kind})")
-            else:
-                desired_kinds[rel] = kind
-    _validate_no_nested_destinations(desired_kinds, cross_mode_conflicts)
-    if cross_mode_conflicts:
-        details = "\n".join(f"- {conflict}" for conflict in sorted(set(cross_mode_conflicts)))
-        raise CfgError(f"Repo output conflict detected:\n{details}")
+    overlays = outputs.overlays
+    mirrors = outputs.mirrors
+    generated_writes = outputs.generated
 
     operations: list[RepoOperation] = []
     for rel in sorted(overlays.all_known_rels - overlays.desired.keys(), key=lambda path: path.as_posix()):

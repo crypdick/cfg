@@ -11,6 +11,7 @@ from pathlib import Path
 from pyinfra.context import host
 
 from cfg.core.errors import CfgError
+from cfg.core.ids import OwnerId, parse_owner_id
 
 # Constants for host.data keys
 CFG_ROOT = "_cfg_root"
@@ -29,3 +30,14 @@ def require_host_data(key: str) -> object:
 def cfg_root_from_host_data() -> Path:
     """Return the cfg root from host.data, resolved to an absolute path."""
     return Path(str(require_host_data(CFG_ROOT))).resolve()
+
+
+def owner_ids_from_host_data() -> list[OwnerId]:
+    """Parse the runtime inventory's owner list once at the pyinfra boundary."""
+    raw = require_host_data(CFG_HOST_OWNER_IDS)
+    if not isinstance(raw, list):
+        raise CfgError("host.data._cfg_host_owner_ids must be a list[str]")
+    try:
+        return [parse_owner_id(str(owner_id)) for owner_id in raw]
+    except ValueError as e:
+        raise CfgError(f"Invalid host owner id in runtime inventory: {e}") from e

@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from cfg.core.errors import CfgError
-from cfg.core.models import HostSettings, RepoSettings, SshSettings, safe_repo_id_path
+from cfg.core.ids import HostName, RepoId, parse_host_name, parse_repo_id
+from cfg.core.models import HostSettings, RepoSettings, safe_repo_id_path
 
 
 @dataclass(frozen=True)
@@ -84,14 +85,14 @@ def _load_toml(path: Path) -> dict[str, Any]:
     return data
 
 
-def _host_name_from_host_toml_path(*, hosts_dir: Path, path: Path) -> str:
+def _host_name_from_host_toml_path(*, hosts_dir: Path, path: Path) -> HostName:
     rel = path.resolve().relative_to(hosts_dir.resolve())
     if len(rel.parts) != 2 or rel.parts[1] != "cfg.toml":
         raise CfgError(f"Invalid host inventory TOML path (expected host/<host>/cfg.toml): {path}")
-    return rel.parts[0]
+    return parse_host_name(rel.parts[0])
 
 
-def _repo_id_from_repo_toml_path(*, repos_dir: Path, path: Path) -> str:
+def _repo_id_from_repo_toml_path(*, repos_dir: Path, path: Path) -> RepoId:
     rel = path.resolve().relative_to(repos_dir.resolve())
     if len(rel.parts) == 3 and rel.parts[2] == "cfg.toml":
         owner, repo, _ = rel.parts
@@ -103,7 +104,7 @@ def _repo_id_from_repo_toml_path(*, repos_dir: Path, path: Path) -> str:
         safe_repo_id_path(rid)
     except ValueError as e:
         raise CfgError(f"Invalid repo id derived from TOML filename: {path}\n{e}") from e
-    return rid
+    return parse_repo_id(rid)
 
 
 def _load_host_from_toml(*, hosts_dir: Path, path: Path) -> HostSettings:
@@ -114,21 +115,15 @@ def _load_host_from_toml(*, hosts_dir: Path, path: Path) -> HostSettings:
     if name != inferred:
         raise CfgError(f"Host TOML `name` must match filename stem ({inferred!r}): {path}")
 
-    features = list(data.get("features") or [])
-    ssh_raw = data.get("ssh")
-    ssh = SshSettings(**ssh_raw) if isinstance(ssh_raw, dict) else None
-
     repos_raw = data.get("repos") or {}
     if not isinstance(repos_raw, dict):
         raise CfgError(f"Host TOML `repos` must be a table/dict: {path}")
-    repos = {str(rid): Path(p) for rid, p in repos_raw.items()}
-
     vars_raw = data.get("vars") or {}
     if not isinstance(vars_raw, dict):
         raise CfgError(f"Host TOML `vars` must be a table/dict: {path}")
 
     try:
-        return HostSettings(name=name, features=features, ssh=ssh, repos=repos, vars=vars_raw)
+        return HostSettings.model_validate({**data, "name": name})
     except (TypeError, ValueError) as e:
         raise CfgError(f"Invalid host inventory TOML content: {path}\n{e}") from e
 
@@ -146,13 +141,7 @@ def _load_repo_from_toml(*, repos_dir: Path, path: Path) -> RepoSettings:
         raise CfgError(f"Repo TOML `settings` is no longer supported (remove it): {path}")
 
     try:
-        return RepoSettings(
-            id=rid,
-            origin_url=data.get("origin_url"),
-            alias=data.get("alias"),
-            features=list(data.get("features") or []),
-            path_provider_overrides=dict(data.get("path_provider_overrides") or {}),
-        )
+        return RepoSettings.model_validate({**data, "id": rid})
     except (TypeError, ValueError) as e:
         raise CfgError(f"Invalid repo inventory TOML content: {path}\n{e}") from e
 

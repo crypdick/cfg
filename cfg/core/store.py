@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import tempfile
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,27 @@ _CFG_TOML_HEADER = """\
 # Use `cfg host` or `cfg repo` commands to modify.
 
 """
+
+
+def _atomic_write_toml(path: Path, data: dict[str, Any]) -> None:
+    """Write a complete TOML document, then atomically publish it."""
+    content = _CFG_TOML_HEADER + tomli_w.dumps(data)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as temporary:
+            temporary.write(content)
+            temporary_path = Path(temporary.name)
+        temporary_path.replace(path)
+    finally:
+        if temporary_path is not None:
+            with suppress(FileNotFoundError):
+                temporary_path.unlink()
 
 
 class InventoryStore:
@@ -55,7 +78,7 @@ class InventoryStore:
         if settings.path_provider_overrides:
             data["path_provider_overrides"] = dict(settings.path_provider_overrides)
 
-        path.write_text(_CFG_TOML_HEADER + tomli_w.dumps(data), encoding="utf-8")
+        _atomic_write_toml(path, data)
         self.reload()  # Invalidate cache
         return path
 
@@ -82,6 +105,6 @@ class InventoryStore:
         if settings.vars:
             data["vars"] = settings.vars
 
-        path.write_text(_CFG_TOML_HEADER + tomli_w.dumps(data), encoding="utf-8")
+        _atomic_write_toml(path, data)
         self.reload()
         return path

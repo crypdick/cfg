@@ -28,11 +28,34 @@ def _init_git_repo(repo_root: Path) -> None:
 def _setup_cfg_root(tmp_path: Path, *, host_hint: str = "h1") -> Path:
     cfg_root = tmp_path / "cfg-root"
     _write(cfg_root / ".cfg-root", "")
+    _write(
+        cfg_root / "features" / "repo" / "python" / "feature.toml",
+        "schema_version = 1\n",
+    )
 
     xdg = tmp_path / "xdg"
     _write(xdg / "cfg" / "root", str(cfg_root) + "\n")
     _write(xdg / "cfg" / "host", host_hint + "\n")
     return cfg_root
+
+
+def test_repo_link_rejects_unknown_feature(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg_root = _setup_cfg_root(tmp_path)
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    repo_root = tmp_path / "repo"
+    _init_git_repo(repo_root)
+    _write(repo_root / "a.txt", "hello\n")
+    monkeypatch.chdir(repo_root)
+
+    from cfg.repo.logic import linking
+
+    with pytest.raises(CfgError, match="Feature not found"):
+        linking.link(path=Path("a.txt"), feature="missing", dry_run=True)
 
 
 def test_repo_link_dry_run_refuses_missing_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -14,24 +14,21 @@ from pathlib import Path
 
 from cfg.core.errors import CfgError
 from cfg.core.fs import iter_files
-from cfg.core.models import safe_relpath
+from cfg.core.ids import HostName, parse_host_name
 from cfg.owners.fs import OwnerFile
 
 HOST_HOME_PROVIDER = "@host"
 
 
-def safe_host_slug(raw: str) -> str:
+def safe_host_slug(raw: str) -> HostName:
     """
     Validate a host name for use as a filesystem path segment.
     (Conservative: must be a single segment, no '..', non-empty.)
     """
-    v = str(raw).strip()
-    if not v:
-        raise CfgError("Host name cannot be empty")
-    p = safe_relpath(v)
-    if len(p.parts) != 1:
-        raise CfgError(f"Host name must be a single path segment (no '/'): {raw!r}")
-    return v
+    try:
+        return parse_host_name(raw)
+    except ValueError as e:
+        raise CfgError(str(e)) from e
 
 
 def host_home_root(cfg_root: Path, host: str) -> Path:

@@ -7,6 +7,7 @@ from cfg.core.cli_logic_utils import normalize_feature_name
 from cfg.core.context import CfgContext
 from cfg.core.models import RepoSettings
 from cfg.core.scope import Scope
+from cfg.host.fs import safe_host_slug
 from cfg.repo.attach import attach_repo
 from cfg.repo.cli_common import require_ctx_repo_id
 from cfg.repo.git import origin_url, repo_root
@@ -18,7 +19,7 @@ def init_repo(*, host: str | None, features: list[str], dry_run: bool) -> list[s
     rr = repo_root()  # Need physical repo root for origin_url and resolving paths
 
     rid = require_ctx_repo_id(ctx)
-    host_name = (host or "").strip() or ctx.host_name
+    host_name = safe_host_slug(host) if host else ctx.host_name
 
     # Repo inventory entry.
     existing_repo = ctx.store.get_repo(rid)

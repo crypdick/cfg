@@ -41,6 +41,7 @@ It must contain useful examples, but no real personal inventory or payloads.
 - `cfg/core/` owns shared schemas, safe-path parsing, root and identity
   discovery, persisted state, subprocess handling, and system checks.
 - `cfg/core/owners/` loads feature manifests and resolves dependency order.
+  Boundary Pydantic models are converted into immutable composed owner values;
   `cfg/owners/fs.py` maps those owners to overlay and mirror payloads.
 - `cfg/repo/` owns repository identity, attachment, planning, and safe local
   filesystem changes. `cfg/repo/plan.py` is the write boundary.
@@ -62,8 +63,9 @@ the host runner for declared host prerequisites. Enforcing a simplistic
 
 - Typer adapters call `cfg.host.logic` or `cfg.repo.logic`; business logic does
   not import the app modules.
-- Repository changes are fully resolved and validated as a `RepoApplyPlan`
-  before `apply_repo_plan()` writes anything.
+- Repository configuration is composed as `RepoOutputs`, then working-tree
+  changes are fully validated as a `RepoApplyPlan` before `apply_repo_plan()`
+  writes anything.
 - All managed relative paths pass through `safe_relpath()` or an equivalent
   safe-path boundary before filesystem use.
 - Cleanup removes a path only when cfg ownership can be established.
@@ -165,6 +167,12 @@ and remote hosts. cfg invokes it through one supported subprocess path.
 Private host features may contain trusted `deploy.py` code. The personalization
 repository is trusted input with the user's privileges, so cfg does not pretend to
 sandbox it. The tool exposes only the small context contract needed by those deploys.
+Host-specific `hosts/<name>/deploy.py` entrypoints participate in the same resolved
+owner sequence as host feature deploys.
+
+`cfg host apply` deliberately remains a single host-update command. It applies home
+files and trusted deploys, then refreshes package metadata and upgrades installed
+packages.
 
 ## Managed-file model
 
@@ -183,7 +191,13 @@ committed duplicate of the desired tree.
 
 ## Validation and testing
 
-- Pydantic validates configuration and persisted state.
+- Pydantic parses TOML and persisted state at system boundaries. Internal owner
+  metadata is composed from frozen dataclasses and semantic repo, host, feature,
+  and owner identifiers instead of passing raw dictionaries and interchangeable
+  strings through the graph.
+- `cfg validate` read-only parses the complete inventory, resolves every host and
+  repository, renders configured generated outputs, and imports declared deploy
+  entrypoints.
 - Strict static checking remains enabled.
 - Package-wide runtime type checking remains enabled.
 - The configured coverage percentage must not decrease.

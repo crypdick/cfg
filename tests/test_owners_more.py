@@ -8,14 +8,16 @@ import pytest
 from cfg.core.errors import CfgError
 from cfg.core.owners import (
     FeatureManifest,
-    OwnerDeps,
-    OwnerInfo,
+    FeatureOwner,
+    OwnerManifest,
     feature_manifest_path,
     load_owner_manifest_index,
     owner_id_to_dir,
+    parse_owner_ref,
     resolve_owners,
     resolve_owners_scoped,
 )
+from cfg.core.scope import Scope
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -86,18 +88,19 @@ def test_owner_paths_map_new_layout_and_reject_invalid_ids(tmp_path: Path) -> No
 def test_feature_manifest_validates_schema_and_short_names() -> None:
     with pytest.raises(ValueError, match="Unsupported feature schema_version"):
         FeatureManifest(schema_version=2)
-    with pytest.raises(ValueError, match="single short name"):
+    with pytest.raises(ValueError, match="single path segment"):
         FeatureManifest(requires=["repo/feature/python"])
     with pytest.raises(ValueError, match="Unsafe"):
         FeatureManifest(generated=["../outside"])
 
 
-def test_internal_owner_metadata_normalizes_empty_values() -> None:
-    assert OwnerDeps(requires=["", "repo/feature/python", "repo/feature/python"]).requires == [
-        "repo/feature/python"
-    ]
-    with pytest.raises(ValueError, match=r"owner\.id must be non-empty"):
-        OwnerInfo(id="")
+def test_internal_owner_metadata_is_composed_from_parsed_values() -> None:
+    owner = parse_owner_ref("repo/feature/python")
+
+    assert owner == FeatureOwner(scope=Scope.REPO, name="python")
+    assert OwnerManifest(owner=owner).owner_id == "repo/feature/python"
+    with pytest.raises(ValueError, match="Invalid owner id"):
+        parse_owner_ref("")
 
 
 def test_host_feature_rejects_host_requires(tmp_path: Path) -> None:
@@ -148,7 +151,7 @@ generated = []
 
 def test_resolve_owners_scoped_filters_dep_edges(tmp_path: Path) -> None:
     cfg_root = tmp_path
-    # repo/feature/a requires host/feature/x, but with allowed_prefixes=("repo/",) it should NOT follow.
+    # repo/feature/a requires host/feature/x, but repo-only resolution should not follow it.
     _write(
         cfg_root / "features" / "repo" / "a" / "feature.toml",
         """
@@ -173,7 +176,7 @@ generated = []
     out = resolve_owners_scoped(
         enabled=["repo/feature/a"],
         manifest_index=idx,
-        allowed_prefixes=("repo/",),
+        allowed_scopes=frozenset({Scope.REPO}),
     )
     assert out == ["repo/feature/a"]
 

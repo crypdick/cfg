@@ -6,6 +6,7 @@ from pathlib import Path
 
 from cfg.core.context import CfgContext
 from cfg.core.errors import CfgError
+from cfg.core.ids import OwnerId, RepoId
 from cfg.core.models import RepoSettings
 from cfg.core.owners import load_owner_manifest_index
 from cfg.owners.fs import OwnerFile, owner_mirror_files, resolve_owner_files
@@ -76,7 +77,12 @@ def _settings_linked_files(*, repo_root: Path, cfg_root: Path) -> Mapping[Path, 
     return linked
 
 
-def _settings_enabled_owner_ids(*, cfg_root: Path, repo_id: str, repo_cfg: RepoSettings) -> list[str]:
+def _settings_enabled_owner_ids(
+    *,
+    cfg_root: Path,
+    repo_id: RepoId,
+    repo_cfg: RepoSettings,
+) -> list[OwnerId]:
     manifest_index = load_owner_manifest_index(cfg_root)
 
     # Settings is a best-effort report. We intentionally DO NOT dependency-resolve here,
@@ -90,7 +96,10 @@ def _settings_enabled_owner_ids(*, cfg_root: Path, repo_id: str, repo_cfg: RepoS
 
 
 def _settings_mirrored_files(
-    *, cfg_root: Path, repo_id: str, repo_cfg: RepoSettings
+    *,
+    cfg_root: Path,
+    repo_id: RepoId,
+    repo_cfg: RepoSettings,
 ) -> Mapping[Path, object]:
     enabled_owner_ids = _settings_enabled_owner_ids(cfg_root=cfg_root, repo_id=repo_id, repo_cfg=repo_cfg)
     resolved = resolve_owner_files(
@@ -104,7 +113,10 @@ def _settings_mirrored_files(
 
 
 def _settings_generated_files(
-    *, cfg_root: Path, repo_id: str, repo_cfg: RepoSettings
+    *,
+    cfg_root: Path,
+    repo_id: RepoId,
+    repo_cfg: RepoSettings,
 ) -> Mapping[Path, object]:
     enabled_owner_ids = _settings_enabled_owner_ids(cfg_root=cfg_root, repo_id=repo_id, repo_cfg=repo_cfg)
     gt = resolve_generated_targets(
