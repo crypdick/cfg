@@ -8,7 +8,7 @@ repair ``_fork_exec`` best-effort before invoking pyinfra.
 The standalone source snippet has no ``cfg`` imports, so it can be embedded in
 generated ``inventory.py`` files and the ``python -c`` subprocess bootstrap.
 
-Delete this module once Python 3.13 is no longer supported.
+TODO: Delete this module when Python 3.13 support ends.
 """
 
 from __future__ import annotations

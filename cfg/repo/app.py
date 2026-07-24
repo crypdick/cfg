@@ -85,7 +85,7 @@ def link(
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print actions but do not write files."),
 ) -> None:
-    """Link a repo file into a feature payload overlay and replace it with a symlink."""
+    """Move a repo file into a feature payload overlay and link the repo path."""
     dest = logic.link(path=Path(path), feature=feature, dry_run=dry_run)
     if dry_run:
         typer.echo(str(dest))

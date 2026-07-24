@@ -57,7 +57,7 @@ def test_link_repo_file_refuses_if_overlay_dest_exists(tmp_path: Path) -> None:
     link_repo_file(cfg_root=cfg_root, repo_root=repo_root, rel_path=Path(".gitignore"), feature="demo")
 
     # Second attempt should refuse because overlay file exists already.
-    # After promotion, the repo path is a symlink. Replace it with a real file to
+    # The promoted repo path is a symlink. Convert it to a regular file to
     # specifically exercise the "overlay already exists" guard.
     p = repo_root / ".gitignore"
     assert p.is_symlink()

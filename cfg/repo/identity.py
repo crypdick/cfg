@@ -31,7 +31,7 @@ def normalize_repo_id(origin_url: str) -> str:
         path = parsed.path.lstrip("/")
         return _normalize_path(path)
 
-    # Fallback: if it looks like host/path, strip host. Otherwise treat as path already.
+    # For host/path forms, strip the host; otherwise treat the value as a path.
     if "/" in origin_url:
         first, rest = origin_url.split("/", 1)
         if "." in first:

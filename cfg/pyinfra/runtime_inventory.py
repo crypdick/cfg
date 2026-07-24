@@ -74,7 +74,7 @@ def _host_data(*, settings: HostSettingsLike, cfg_root: Path, cfg_inventory: Inv
     data[CFG_HOST_OWNER_IDS] = resolve_host_owner_ids_for_host(
         cfg_root=cfg_root,
         cfg_inventory=cfg_inventory,
-        host_settings=settings,  # pyright: ignore[reportArgumentType] — HostSettingsLike is duck-type compatible; callers always pass HostSettings
+        host_settings=settings,  # pyright: ignore[reportArgumentType] — conforms to HostSettingsLike; callers pass HostSettings
     )
 
     # Commonly useful inventory material for future deploys (safe strings).

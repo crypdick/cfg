@@ -1,0 +1,23 @@
+include .gitignore
+include .new-feature.toml
+include .python-version
+include .secrets.baseline
+include AGENTS.md
+include CONVENTIONS.md
+include prek.toml
+include pyrightconfig.json
+include uv.lock
+
+recursive-include .claude *.md
+recursive-include .codex *.json
+recursive-include docs *.md
+recursive-include examples *.toml
+recursive-include scripts *.py
+recursive-include tests *.md *.py
+
+prune **/__pycache__
+prune **/*.egg-info
+
+include cfg/core/templates/.gitkeep
+include examples/personalization/.cfg-root
+include examples/personalization/features/host/shell/overlay/.profile

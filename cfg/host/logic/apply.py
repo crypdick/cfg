@@ -11,7 +11,10 @@ def apply(*, host: str | None, dry_run: bool, quiet: bool = False, force: bool =
     # Print these immediately before any pyinfra output
     stat_messages = ensure_gnu_stat_for_pyinfra()
     for msg in stat_messages:
-        print(msg, flush=True)  # noqa: T201 -- must flush before pyinfra subprocess writes to stdout
+        print(  # noqa: T201 -- must flush before pyinfra subprocess writes to stdout
+            msg,
+            flush=True,
+        )  # allow: print-statements
 
     ctx, host = host_ctx(host)
     require_registered_host(ctx, host)

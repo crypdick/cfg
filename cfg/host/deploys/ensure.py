@@ -30,7 +30,7 @@ def ensure_apt_repo(
     """
     Add a third-party APT repository with a signed GPG keyring (no-op on non-apt systems).
 
-    Uses the modern signed-by approach (not the deprecated apt-key).
+    Uses signed-by to scope trust to this repository instead of global apt-key trust.
 
     Args:
         key_url: URL of the ASCII-armored GPG key

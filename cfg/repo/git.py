@@ -37,7 +37,7 @@ def git_dir(repo: Path) -> Path:
             rel = raw[len(prefix) :].strip()
             return (repo / rel).resolve()
 
-    # As a fallback, ask git directly.
+    # Ask git directly when .git does not resolve the directory.
     gd = run_cmd(["git", "rev-parse", "--git-dir"], cwd=repo)
     p = Path(gd)
     return (repo / p).resolve() if not p.is_absolute() else p.resolve()

@@ -25,7 +25,7 @@ hooks = [
 repo = "https://github.com/Yelp/detect-secrets"
 rev = "v1.5.0"
 hooks = [
-    { id = "detect-secrets", exclude = "uv\\.lock" },
+    { id = "detect-secrets", args = ["--baseline", ".secrets.baseline"], exclude = "uv\\.lock" },
 ]
 
 [[repos]]
@@ -51,6 +51,11 @@ rev = "2026.07.08"
 hooks = [{ id = "validate-pyproject" }]
 
 [[repos]]
+repo = "https://github.com/henryiii/check-sdist"
+rev = "v1.5.0"
+hooks = [{ id = "check-sdist-isolated", args = ["--inject-junk"] }]
+
+[[repos]]
 repo = "local"
 
 [[repos.hooks]]
@@ -74,6 +79,34 @@ entry = "uv run mypy cfg/"
 language = "system"
 pass_filenames = false
 always_run = true
+
+[[repos.hooks]]
+id = "check-exception-handling"
+name = "Check exception handling"
+entry = "uv run python scripts/prek_hooks/check_exception_handling.py"
+language = "system"
+types = ["python"]
+
+[[repos.hooks]]
+id = "check-print-statements"
+name = "Check print statements"
+entry = "uv run python scripts/prek_hooks/check_print_statements.py"
+language = "system"
+types = ["python"]
+
+[[repos.hooks]]
+id = "check-timeless-comments"
+name = "Check timeless comments"
+entry = "uv run python scripts/prek_hooks/check_timeless_comments.py"
+language = "system"
+types = ["python"]
+
+[[repos.hooks]]
+id = "check-file-length"
+name = "Check file length"
+entry = "uv run python scripts/prek_hooks/check_file_length.py"
+language = "system"
+types = ["python"]
 
 [[repos.hooks]]
 id = "deptry"

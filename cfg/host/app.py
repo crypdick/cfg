@@ -188,7 +188,7 @@ def features_create(
     requires: list[str] = _CREATE_REQUIRES_OPT,
     dry_run: bool = typer.Option(False, "--dry-run", help="Print actions but do not create files."),
 ) -> None:
-    """Create a new feature directory with a feature.toml scaffold."""
+    """Create a feature directory with a feature.toml scaffold."""
     echo_lines(logic.features_create(feature=feature, requires=requires, dry_run=dry_run))
 
 

@@ -67,7 +67,7 @@ def test_repo_init_writes_repo_inventory_without_settings_table(
 
     data = tomllib.loads(out_path.read_text(encoding="utf-8"))
     assert data["id"] == "owner/repo"
-    assert "settings" not in data  # repo [settings] table removed
+    assert "settings" not in data  # repo settings stay at the top level
 
     # Idempotency: running init again should not crash.
     res2 = runner.invoke(main.app, ["repo", "init", "--host", "h1"])

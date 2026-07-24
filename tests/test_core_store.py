@@ -48,7 +48,7 @@ def test_store_save_repo_includes_optional_fields(tmp_path: Path) -> None:
     assert data["alias"] == "r"
     assert data["features"] == ["uv"]
     assert data["path_provider_overrides"] == {"a.txt": "repo/feature/base"}
-    # Ensure store writes repo settings under the new layout.
+    # Store writes repo settings under the canonical layout.
     assert path == cfg_root / "repos" / "owner" / "repo" / "cfg.toml"
 
 
@@ -74,5 +74,5 @@ def test_store_save_host_includes_optional_fields(tmp_path: Path) -> None:
     assert data["ssh"] == {"host": "example.com", "user": "me", "port": 2222}
     assert data["repos"] == {"owner/repo": "/tmp/repo"}
     assert data["vars"] == {"x": 1}
-    # Ensure store writes host settings under the new layout.
+    # Store writes host settings under the canonical layout.
     assert path == cfg_root / "hosts" / "h1" / "cfg.toml"

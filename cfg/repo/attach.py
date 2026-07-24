@@ -35,7 +35,7 @@ def attach_repo(
 ) -> None:
     """
     Attach cfg to a git repo:
-    - remove cfg's obsolete private-root pre-commit shim when present
+    - remove cfg's private-root pre-commit shim when present
     - add local ignore patterns to .git/info/exclude
     - record undo state in .cfg/state.json
 

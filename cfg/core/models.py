@@ -177,8 +177,8 @@ class HostSettings(BaseModel):
 class RepoAttachState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Legacy: previous value of git config core.hooksPath (None if unset).
-    # We no longer set core.hooksPath because it breaks `pre-commit install`.
+    # Retained state for restoring core.hooksPath values stored in repo manifests.
+    # Attach leaves core.hooksPath unset because custom values break hook installation.
     prev_core_hooks_path: str | None = None
 
     # Patterns added to .git/info/exclude by cfg attach.

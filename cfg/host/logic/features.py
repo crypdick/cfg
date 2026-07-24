@@ -85,7 +85,7 @@ def features_create(*, feature: str, requires: list[str], dry_run: bool = False)
     """
     Business logic for `cfg host feature create` (returns lines to print).
 
-    Creates a new feature directory with a feature.toml scaffold.
+    Creates a feature directory with a feature.toml scaffold.
 
     Args:
         feature: Short feature name (for example, "my-feature")

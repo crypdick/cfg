@@ -45,7 +45,7 @@ def sync_repos(
             if res.updated:
                 updated += 1
             lines.append(f"{repo_id}: {res.message} ({res.path})")
-        except Exception as e:  # noqa: BLE001 -- best-effort loop: collect all failures, report at end
+        except Exception as e:  # noqa: BLE001  # allow: exception-handling -- report batch at end
             failures.append(f"{repo_id}: {e}")
             lines.append(f"{repo_id}: ERROR: {e}")
 

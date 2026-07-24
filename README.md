@@ -66,6 +66,8 @@ the user's privileges.
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Design conventions](CONVENTIONS.md)
 - [Generated files](docs/generated-files.md)
 - [pyinfra conventions](docs/pyinfra-idioms.md)
 - [`stat` compatibility](docs/pyinfra-stat-hang-fix.md)
+- [Quality scorecard](docs/QUALITY.md)

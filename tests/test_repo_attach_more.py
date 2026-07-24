@@ -33,7 +33,7 @@ def test_attach_repo_writes_repo_id_from_origin_when_missing(
 
     attach_repo(repo_root=repo_root, cfg_root=cfg_root)
 
-    # Repo identity is derived from git origin; we no longer persist `.cfg/repo_id`.
+    # Repo identity comes from git origin; attach persists only operational state.
     assert not (repo_root / ".cfg" / "repo_id").exists()
     assert (repo_root / ".cfg" / "state.json").is_file()
     assert not (repo_root / ".git" / "hooks" / "pre-commit").exists()

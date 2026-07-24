@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Prek hook to forbid tests from importing private first-party symbols.
 
 Philosophy: tests should verify *public behaviour*, not private implementation

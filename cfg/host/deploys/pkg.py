@@ -17,7 +17,7 @@ Usage:
         brew_packages=["ripgrep"],
     )
 
-    # Update and upgrade packages
+    # Refresh package metadata and install available package versions
     pkg_update()
     pkg_upgrade()
 
@@ -96,10 +96,7 @@ def pkg_update(*, name: str | None = None) -> None:
 
 def pkg_upgrade(*, name: str | None = None) -> None:
     """
-    Upgrade installed packages.
-
-    On Linux (apt): runs `apt-get upgrade`
-    On macOS (brew): runs `brew upgrade`
+    Bring installed packages to the versions available from configured repositories.
     """
     os = detect_os()
     if os == HostOS.LINUX and _has_apt():

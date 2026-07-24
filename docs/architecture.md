@@ -34,6 +34,42 @@ The tool repository owns:
 
 It must contain useful examples, but no real personal inventory or payloads.
 
+## Package codemap
+
+- `main.py`, `cfg/host/app.py`, and `cfg/repo/app.py` are Typer adapters. They
+  parse command input and render the lines returned by the logic packages.
+- `cfg/core/` owns shared schemas, safe-path parsing, root and identity
+  discovery, persisted state, subprocess handling, and system checks.
+- `cfg/core/owners/` loads feature manifests and resolves dependency order.
+  `cfg/owners/fs.py` maps those owners to overlay and mirror payloads.
+- `cfg/repo/` owns repository identity, attachment, planning, and safe local
+  filesystem changes. `cfg/repo/plan.py` is the write boundary.
+- `cfg/render/` resolves templates and generated-file reports used by both
+  host and repository commands.
+- `cfg/host/` owns host-facing command logic, managed-home plans, repository
+  synchronization, and pyinfra deploy composition.
+- `cfg/pyinfra/` is the pyinfra process boundary: it generates runtime
+  inventory, invokes pyinfra, and cleans up transient inventory files.
+- `cfg/deploys/host_data.py` is the narrow typed adapter for data exposed to
+  trusted private deploy files.
+
+The dependency graph is intentionally not a pure layer cake. For example,
+`cfg/core/context.py` resolves repository identity, while repo apply may invoke
+the host runner for declared host prerequisites. Enforcing a simplistic
+`core -> repo -> host` import order would encode a false architecture.
+
+## Load-bearing invariants
+
+- Typer adapters call `cfg.host.logic` or `cfg.repo.logic`; business logic does
+  not import the app modules.
+- Repository changes are fully resolved and validated as a `RepoApplyPlan`
+  before `apply_repo_plan()` writes anything.
+- All managed relative paths pass through `safe_relpath()` or an equivalent
+  safe-path boundary before filesystem use.
+- Cleanup removes a path only when cfg ownership can be established.
+- The public repository never contains real personal inventory or payloads.
+- Private `deploy.py` files are trusted extensions, not sandboxed input.
+
 ## Personalization repository
 
 The default data root is `~/.cfg`.

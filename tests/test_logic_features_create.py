@@ -85,7 +85,7 @@ def test_repo_features_add_creates_repo_when_missing(tmp_path: Path, monkeypatch
 
 
 def test_host_features_create_basic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test creating a new feature without dependencies."""
+    """Test creating a feature without dependencies."""
     cfg_root = _setup_cfg_root(tmp_path)
     monkeypatch.setenv("CFG_ROOT", str(cfg_root))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))

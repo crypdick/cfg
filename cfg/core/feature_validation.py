@@ -52,7 +52,7 @@ def require_feature_not_exists_in_manifest(
     """
     Validate that a feature does NOT exist in the manifest index.
 
-    Use this before creating a new feature to prevent overwriting.
+    Use this before creating a feature to prevent overwriting.
 
     Raises:
         CfgError: If the feature already exists.

@@ -114,7 +114,7 @@ def ensure_gnu_stat_for_pyinfra() -> list[str]:
 
     # Check if update-alternatives is already configured
     if _check_update_alternatives_configured():
-        # Alternatives is configured but pointing to wrong one, just switch it
+        # Point an existing alternatives entry at the GNU implementation.
         messages.append("Switching stat to GNU coreutils (package update reverted to uutils)...")
         try:
             subprocess.run(

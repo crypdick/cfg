@@ -7,7 +7,7 @@ Behavior:
 
 Safety:
 - By default, we never overwrite existing non-link files when running in symlink mode
-  (mirrors legacy behavior: fail loudly on conflicts).
+  (conflicts fail loudly).
 - Pass ``--force`` to ``cfg host apply`` to overwrite non-link files with symlinks
   (sets ``CFG_FORCE_LINKS=1`` in the pyinfra subprocess).
 """
@@ -33,7 +33,7 @@ from cfg.owners.fs import OwnerFile
 
 def _cleanup_stale_managed_symlinks(*, home: str, plan: HomePlan, roots: list[Path]) -> None:
     """
-    Remove symlinks under $HOME that point into cfg-managed roots but are no longer desired.
+    Remove symlinks under $HOME that point into cfg-managed roots but are absent from the plan.
     """
     for rel in sorted(plan.all_known_rels):
         if rel in plan.desired:
@@ -58,7 +58,7 @@ def _ensure_parent_dirs_for_desired(*, home: str, desired: dict[Path, OwnerFile]
 
     Notes:
     - pyinfra's link op doesn't always create intermediate dirs reliably under local exec.
-    - old cfg setups may leave broken symlink "directories" behind (eg ~/.config/git).
+    - broken symlink "directories" may exist at paths such as ~/.config/git.
     """
     parent_dirs: set[Path] = set()
     for rel in desired:
@@ -159,10 +159,9 @@ def deploy_apply_home() -> None:
     # Run feature-specific deploys after home files are in place.
     # These configure third-party APT repos (keyrings + sources.list.d) and
     # install feature-specific packages. Must run before the global apt
-    # update/upgrade so stale repo entries are replaced before apt tries to
-    # fetch from them.
+    # package refresh so invalid source entries are cleared before apt fetches.
     deploy_features()
 
-    # Update package cache and upgrade installed packages (apt or brew).
+    # Refresh package metadata and install available versions (apt or brew).
     pkg_update()
     pkg_upgrade()

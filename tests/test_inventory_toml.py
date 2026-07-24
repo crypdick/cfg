@@ -142,10 +142,9 @@ def test_cfg_host_init_writes_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
 def test_inventory_loads_host_and_repo_dirs(tmp_path: Path) -> None:
     """
-    Legacy layout used to live under:
+    Inventory entries are loaded from:
     - hosts/<host>/cfg.toml
     - repos/<owner>/<repo>/cfg.toml
-    These should be loaded.
     """
     cfg_root = tmp_path
     _write(cfg_root / ".cfg-root", "")

@@ -22,7 +22,7 @@ def link_repo_file(*, cfg_root: Path, repo_root: Path, rel_path: Path, feature: 
     """
     Link a repo file into an owner payload overlay:
     - copies repo_root/rel_path -> features/repo/<feature>/overlay/rel_path
-    - replaces repo_root/rel_path with a symlink to the canonical file
+    - turns repo_root/rel_path into a symlink to the canonical file
     """
     rel_path = Path(rel_path)
     raw = repo_root / rel_path
@@ -56,7 +56,7 @@ def unlink_repo_file(*, repo_root: Path, rel_path: Path, dry_run: bool = False) 
     """
     Unlink a repo file:
     - requires repo_root/rel_path to be a symlink
-    - replaces the symlink with a real file copied from the symlink target
+    - copies the symlink target into a regular file at repo_root/rel_path
 
     Safety:
     - refuses to unlink if the symlink target does not exist or is a directory
@@ -82,7 +82,7 @@ def unlink_repo_file(*, repo_root: Path, rel_path: Path, dry_run: bool = False) 
     # Ensure parent exists for the final destination.
     raw.parent.mkdir(parents=True, exist_ok=True)
 
-    # Replace symlink with a real file (atomic-ish: write temp then replace).
+    # Install a regular file atomically when the filesystem permits it.
     # Note: `tmp` path lives under repo_root, so this can't escape the repo.
     tmp.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(target, tmp)
