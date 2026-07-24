@@ -68,27 +68,6 @@ def test_uv_exists_true_and_false(monkeypatch: pytest.MonkeyPatch) -> None:
     assert repo_apply_logic._uv_exists() is True
 
 
-def test_ensure_host_for_repo_apply_noop_when_no_implied_owners(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    import cfg.repo.logic.apply as repo_apply_logic
-    from cfg.core.context import CfgContext
-    from cfg.core.store import InventoryStore
-
-    # Construct a real CfgContext to satisfy beartype.
-    (tmp_path / ".cfg-root").write_text("", encoding="utf-8")
-    ctx = CfgContext(root=tmp_path, store=InventoryStore(tmp_path))
-    ctx._host_name = "h1"  # avoid requiring an XDG host hint file
-
-    # Must not call host runner when implied list is empty.
-    monkeypatch.setattr(
-        repo_apply_logic,
-        "run_host_pyinfra",
-        lambda **_kw: (_ for _ in ()).throw(RuntimeError("called")),
-    )
-    repo_apply_logic._ensure_host_for_repo_apply(ctx=ctx, implied_host_owner_ids=[])
-
-
 def test_repo_init_backfills_origin_url_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg_root = _setup_cfg_root(tmp_path)
     monkeypatch.setenv("CFG_ROOT", str(cfg_root))
@@ -147,7 +126,6 @@ features = []
     import main
 
     monkeypatch.setattr(repo_apply_logic, "resolved_repo_owner_ids", lambda **_kw: [])
-    monkeypatch.setattr(repo_apply_logic, "resolve_host_owner_ids_implied_by_repo", lambda **_kw: [])
     monkeypatch.setattr(repo_apply_logic, "attach_repo", lambda **_kw: None)
 
     monkeypatch.setattr(repo_apply_logic, "run_cmd", lambda *_a, **_kw: "")

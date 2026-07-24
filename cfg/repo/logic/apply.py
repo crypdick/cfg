@@ -1,86 +1,23 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from pathlib import Path
 
-from cfg.core.context import CfgContext
 from cfg.core.errors import CfgError
-from cfg.core.ids import OwnerId
-from cfg.core.owners import (
-    resolve_host_owner_ids_implied_by_repo,
-)
 from cfg.core.subprocess import run_cmd
-from cfg.host.cli_common import builtin_workflow_path
-from cfg.host.runner import run_pyinfra as run_host_pyinfra
 from cfg.repo.attach import attach_repo, validate_repo_attachment
 from cfg.repo.cli_common import repo_ctx, require_registered_repo, resolved_repo_owner_ids
 from cfg.repo.git import git_dir
 from cfg.repo.plan import apply_repo_plan, build_repo_apply_plan, format_repo_plan
-from cfg.repo.precommit import PRECOMMIT_PATH
+
+PRECOMMIT_PATH = Path(".pre-commit-config.yaml")
 
 
-# Kept as module-level functions so tests can monkeypatch them.
 def _uv_exists() -> bool:
     try:
         out = run_cmd(["uv", "--version"], check=False)
     except CfgError:
         return False
     return bool(str(out or "").strip())
-
-
-@dataclass(frozen=True)
-class _HostPrereq:
-    owner_id: str
-    name: str
-    exists: Callable[[], bool]
-
-
-_HOST_PREREQS: dict[str, _HostPrereq] = {
-    # Use indirection so tests can monkeypatch `_uv_exists` and have it reflected here.
-    "host/feature/uv": _HostPrereq(owner_id="host/feature/uv", name="uv", exists=lambda: _uv_exists()),  # noqa: PLW0108 -- indirection is intentional for monkeypatch testability
-}
-
-
-def _missing_host_prereqs(
-    *,
-    implied_host_owner_ids: Sequence[OwnerId],
-) -> list[_HostPrereq]:
-    missing: list[_HostPrereq] = []
-    for oid in implied_host_owner_ids or []:
-        prereq = _HOST_PREREQS.get(str(oid))
-        if prereq is None:
-            continue
-        if not prereq.exists():
-            missing.append(prereq)
-    return missing
-
-
-# Kept as module-level function so tests can monkeypatch `run_host_pyinfra`.
-def _ensure_host_for_repo_apply(
-    *,
-    ctx: CfgContext,
-    implied_host_owner_ids: Sequence[OwnerId],
-    dry_run: bool = False,
-) -> None:
-    """
-    Ensure host prerequisites implied by repo owners by delegating to the host
-    workflow on @local, explicitly injecting additional host owner ids.
-    """
-    implied = [str(o).strip() for o in (implied_host_owner_ids or []) if str(o).strip()]
-    if not implied:
-        return
-
-    deploy = builtin_workflow_path("apply_home")
-    run_host_pyinfra(
-        cfg_root=ctx.root,
-        cfg_inventory=ctx.store.inventory,
-        limit=["@local"],
-        deploy_file=deploy,
-        current_host_for_local=ctx.host_name,
-        extra_env={"CFG_EXTRA_HOST_OWNER_IDS": ",".join(implied)},
-        dry_run=dry_run,
-    )
 
 
 def _ensure_precommit_installed(*, repo_root: Path, cfg_root: Path) -> list[str]:
@@ -112,13 +49,18 @@ def _ensure_precommit_installed(*, repo_root: Path, cfg_root: Path) -> list[str]
     return []
 
 
-def apply(*, allow_dirty: bool, ensure_host: bool, dry_run: bool) -> list[str]:
+def apply(*, allow_dirty: bool, dry_run: bool) -> list[str]:
     """Business logic for `cfg repo apply` (returns lines to print)."""
     ctx, rr, rid = repo_ctx()
     cfg = require_registered_repo(ctx, rid, include_hint=True)
 
     lines: list[str] = []
-    repo_owner_ids = resolved_repo_owner_ids(cfg_root=ctx.root, cfg=cfg)
+    snapshot = ctx.snapshot
+    repo_owner_ids = resolved_repo_owner_ids(
+        cfg_root=ctx.root,
+        cfg=cfg,
+        manifest_index=snapshot.manifest_index,
+    )
 
     # Refuse before planning or performing any mutation.
     if not allow_dirty and not dry_run:
@@ -130,7 +72,7 @@ def apply(*, allow_dirty: bool, ensure_host: bool, dry_run: bool) -> list[str]:
                 f"git status --porcelain:\n{dirty}"
             )
 
-    validate_repo_attachment(repo_root=rr)
+    previous_state = validate_repo_attachment(repo_root=rr)
 
     # Resolve and validate every repo destination before host, cfg-root, or repo mutation.
     plan = build_repo_apply_plan(
@@ -138,28 +80,10 @@ def apply(*, allow_dirty: bool, ensure_host: bool, dry_run: bool) -> list[str]:
         repo_root=rr,
         repo_id=rid,
         enabled_owner_ids=repo_owner_ids,
+        manifest_index=snapshot.manifest_index,
+        previous_state=previous_state,
         path_provider_overrides=cfg.path_provider_overrides,
     )
-
-    implied_host_owner_ids = resolve_host_owner_ids_implied_by_repo(
-        cfg_root=ctx.root, enabled_repo_owner_ids=repo_owner_ids
-    )
-
-    missing = _missing_host_prereqs(implied_host_owner_ids=implied_host_owner_ids)
-    if missing and ensure_host:
-        _ensure_host_for_repo_apply(ctx=ctx, implied_host_owner_ids=implied_host_owner_ids, dry_run=dry_run)
-        missing = _missing_host_prereqs(implied_host_owner_ids=implied_host_owner_ids)
-
-    if missing:
-        msg_lines = [
-            "Missing host prerequisite(s):",
-            *(f"- {p.name} (implied by {p.owner_id})" for p in missing),
-            "",
-            "Fix one of:",
-            "- run `cfg host apply` (recommended)",
-            "- re-run this command with `cfg repo apply --ensure-host`",
-        ]
-        raise CfgError("\n".join(msg_lines))
 
     if dry_run:
         lines.append("note: --dry-run set; skipping repo attachment step.")

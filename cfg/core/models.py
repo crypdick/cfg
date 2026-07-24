@@ -14,7 +14,7 @@ Key invariant:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -186,6 +186,30 @@ class RepoAttachState(BaseModel):
     exclude_patterns_added: list[str] = Field(default_factory=list)
 
 
+class ManagedPathState(BaseModel):
+    """Last-applied ownership evidence for one repo-relative managed path."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal["overlay", "mirror", "generated"]
+    owner: OwnerId
+    digest: str
+    source: str | None = None
+
+    @field_validator("owner")
+    @classmethod
+    def _owner_valid(cls, value: str) -> OwnerId:
+        return parse_owner_id(value)
+
+    @field_validator("digest")
+    @classmethod
+    def _digest_valid(cls, value: str) -> str:
+        normalized = str(value).strip().lower()
+        if len(normalized) != 64 or any(char not in "0123456789abcdef" for char in normalized):
+            raise ValueError("Managed path digest must be a SHA-256 hex digest")
+        return normalized
+
+
 class RepoStateManifest(BaseModel):
     """
     Stored in target repos at `.cfg/state.json`.
@@ -195,3 +219,18 @@ class RepoStateManifest(BaseModel):
 
     schema_version: int = 1
     attach: RepoAttachState = Field(default_factory=RepoAttachState)
+    managed: dict[str, ManagedPathState] = Field(default_factory=dict)
+
+    @field_validator("managed")
+    @classmethod
+    def _managed_paths_safe(
+        cls,
+        values: dict[str, ManagedPathState],
+    ) -> dict[str, ManagedPathState]:
+        out: dict[str, ManagedPathState] = {}
+        for raw, state in values.items():
+            rel = safe_relpath(raw)
+            if rel == Path():
+                raise ValueError("Managed path cannot be the repo root")
+            out[rel.as_posix()] = state
+        return out

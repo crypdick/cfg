@@ -64,15 +64,10 @@ def apply(
     allow_dirty: bool = typer.Option(
         False, "--allow-dirty", help="Allow overlays even if the repo is dirty."
     ),
-    ensure_host: bool = typer.Option(
-        False,
-        "--ensure-host",
-        help="Opt-in: ensure missing host prerequisites implied by repo owners (runs host workflow on @local).",
-    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Plan mode: do not execute operations."),
 ) -> None:
     """Apply cfg repo configuration (attach + overlays + generated artifacts + managed mirror files)."""
-    echo_lines(logic.apply(allow_dirty=allow_dirty, ensure_host=ensure_host, dry_run=dry_run))
+    echo_lines(logic.apply(allow_dirty=allow_dirty, dry_run=dry_run))
 
 
 @app.command("link")

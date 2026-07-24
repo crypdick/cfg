@@ -42,9 +42,19 @@ def apply(
     echo_lines(logic.apply(host=host, dry_run=dry_run, quiet=quiet, force=force))
 
 
+@app.command()
+def upgrade(
+    host: str | None = typer.Argument(None),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Plan mode: do not execute operations."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress verbose pyinfra output."),
+) -> None:
+    """Refresh package metadata and install available package updates."""
+    echo_lines(logic.upgrade(host=host, dry_run=dry_run, quiet=quiet))
+
+
 @app.command("managed")
 def managed(host: str | None = typer.Argument(None)) -> None:
-    """Show managed files for a host (linked, mirrored, generated)."""
+    """Show linked and mirrored files managed for a host."""
     echo_lines(logic.managed(host=host))
 
 

@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol
 
 from cfg.core.ids import FeatureName, HostName, RepoId
 from cfg.core.models import HostSettings, RepoSettings, SshSettings
 
 
-@runtime_checkable
 class HostSettingsLike(Protocol):
     # Mirrors the subset of HostSettings consumed by runtime inventory generation.
     @property
@@ -27,7 +26,6 @@ class HostSettingsLike(Protocol):
     def ssh(self) -> SshSettings | None: ...
 
 
-@runtime_checkable
 class HostStoreLike(Protocol):
     """Subset of the inventory store consumed by host CLI helpers."""
 
@@ -35,7 +33,6 @@ class HostStoreLike(Protocol):
     def get_host_path(self, host_name: str) -> Path: ...
 
 
-@runtime_checkable
 class RepoStoreLike(Protocol):
     """Subset of the inventory store consumed by repo CLI helpers."""
 
@@ -43,20 +40,16 @@ class RepoStoreLike(Protocol):
     def get_repo_path(self, repo_id: str) -> Path: ...
 
 
-@runtime_checkable
 class HostCtxLike(Protocol):
     """Subset of `CfgContext` consumed by host CLI helpers.
 
-    Only side-effect-free members are listed: `host_name`/`repo_id` on the real
-    context are lazy properties, and naming them here would force resolution
-    during beartype's structural isinstance check.
+    Only the capability consumed by host helpers is part of this contract.
     """
 
     @property
     def store(self) -> HostStoreLike: ...
 
 
-@runtime_checkable
 class RepoCtxLike(Protocol):
     """Subset of `CfgContext` consumed by repo CLI helpers."""
 

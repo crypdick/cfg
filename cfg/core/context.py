@@ -5,10 +5,20 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cfg.core.host_id import require_cfg_host
-from cfg.core.ids import HostName, RepoId
+from cfg.core.ids import HostName, OwnerId, RepoId
+from cfg.core.inventory import Inventory
+from cfg.core.owners import OwnerManifest, load_owner_manifest_index
 from cfg.core.root import require_cfg_root
 from cfg.core.store import InventoryStore
 from cfg.repo.identity import repo_id_for_repo
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigurationSnapshot:
+    """One internally consistent read of inventory and owner metadata."""
+
+    inventory: Inventory
+    manifest_index: dict[OwnerId, OwnerManifest]
 
 
 @dataclass
@@ -20,6 +30,7 @@ class CfgContext:
     _repo_root: Path | None = None
     _repo_id: RepoId | None = None
     _host_name: HostName | None = None
+    _snapshot: ConfigurationSnapshot | None = None
 
     @classmethod
     def load(cls) -> CfgContext:
@@ -51,3 +62,13 @@ class CfgContext:
         if self._host_name is None:
             self._host_name = require_cfg_host()
         return self._host_name
+
+    @property
+    def snapshot(self) -> ConfigurationSnapshot:
+        if self._snapshot is None:
+            inventory = self.store.inventory
+            self._snapshot = ConfigurationSnapshot(
+                inventory=inventory,
+                manifest_index=load_owner_manifest_index(self.root, inventory=inventory),
+            )
+        return self._snapshot

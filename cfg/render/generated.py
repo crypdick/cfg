@@ -1,7 +1,7 @@
 """
 Generalized "generated artifacts" engine.
 
-Feature manifests can declare generated outputs via:
+Repo feature manifests can declare generated outputs via:
 
     generated = ["<dest-relpath>", ...]
 
@@ -31,7 +31,7 @@ from cfg.core.owners import OwnerManifest, load_owner_manifest_index, owner_id_t
 @dataclass(frozen=True)
 class GeneratedTarget:
     owner: OwnerId
-    rel: Path  # destination relpath within the target scope
+    rel: Path  # destination relpath within the repository
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ class TemplateWrite:
     A single template-write description.
 
     - src is either a filesystem path (string) or an IO object (StringIO).
-    - rel is repo/home relative, depending on the apply context.
+    - rel is repository-relative.
     """
 
     owner: OwnerId
@@ -74,6 +74,7 @@ def resolve_generated_targets(
     *,
     cfg_root: Path,
     enabled_owner_ids: Sequence[OwnerId],
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
     path_provider_overrides: Mapping[str, str] | None = None,
     conflict_error_prefix: str = "Generated artifact conflict",
 ) -> ResolvedGeneratedTargets:
@@ -85,7 +86,8 @@ def resolve_generated_targets(
       `path_provider_overrides` selects a provider owner id for that relpath.
     """
     path_provider_overrides = dict(path_provider_overrides or {})
-    manifest_index = load_owner_manifest_index(cfg_root)
+    if manifest_index is None:
+        manifest_index = load_owner_manifest_index(cfg_root)
 
     providers: dict[Path, list[GeneratedTarget]] = {}
     for owner_id in enabled_owner_ids or []:
@@ -240,6 +242,7 @@ def render_repo_generated_template_writes(
     cfg_root: Path,
     repo_id: str,
     enabled_owner_ids: Sequence[OwnerId],
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
     path_provider_overrides: Mapping[str, str] | None = None,
     only_rels: set[Path] | None = None,
 ) -> list[TemplateWrite]:
@@ -249,6 +252,7 @@ def render_repo_generated_template_writes(
     resolved = resolve_generated_targets(
         cfg_root=cfg_root,
         enabled_owner_ids=enabled_owner_ids,
+        manifest_index=manifest_index,
         path_provider_overrides=path_provider_overrides,
         conflict_error_prefix="Generated artifact conflict",
     )

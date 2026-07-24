@@ -64,3 +64,18 @@ def test_validate_configuration_checks_unused_generated_features(tmp_path: Path)
 
     with pytest.raises(CfgError, match="Missing generated template source"):
         validate_configuration(tmp_path)
+
+
+def test_validate_configuration_checks_repo_host_requirements(tmp_path: Path) -> None:
+    _valid_configuration(tmp_path)
+    _write(
+        tmp_path / "features" / "repo" / "tool" / "feature.toml",
+        'schema_version = 1\nhost_requires = ["missing"]\n',
+    )
+    _write(
+        tmp_path / "repos" / "owner" / "project" / "cfg.toml",
+        'id = "owner/project"\nfeatures = ["tool"]\n',
+    )
+
+    with pytest.raises(CfgError, match="Feature not found: host/feature/missing"):
+        validate_configuration(tmp_path)

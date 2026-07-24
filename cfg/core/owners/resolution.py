@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from cfg.core.errors import CfgError
@@ -19,7 +19,7 @@ def _parse_enabled(enabled: Sequence[str]) -> tuple[list[OwnerId], dict[OwnerId,
 
 
 def _require_known(
-    manifest_index: dict[OwnerId, OwnerManifest],
+    manifest_index: Mapping[OwnerId, OwnerManifest],
     owner_id: OwnerId,
 ) -> OwnerManifest:
     if owner_id not in manifest_index:
@@ -48,7 +48,7 @@ def _require_known(
 def _expand_closure(
     *,
     enabled: list[OwnerId],
-    manifest_index: dict[OwnerId, OwnerManifest],
+    manifest_index: Mapping[OwnerId, OwnerManifest],
     dep_allowed: Callable[[OwnerId], bool],
 ) -> set[OwnerId]:
     closure: set[OwnerId] = set()
@@ -66,7 +66,7 @@ def _expand_closure(
 def _raise_on_conflicts(
     *,
     closure: set[OwnerId],
-    manifest_index: dict[OwnerId, OwnerManifest],
+    manifest_index: Mapping[OwnerId, OwnerManifest],
 ) -> None:
     conflicts: set[str] = set()
     for owner_id in sorted(closure):
@@ -82,7 +82,7 @@ def _raise_on_conflicts(
 def _toposort_owners(
     *,
     closure: set[OwnerId],
-    manifest_index: dict[OwnerId, OwnerManifest],
+    manifest_index: Mapping[OwnerId, OwnerManifest],
     enabled_pos: dict[OwnerId, int],
     dep_allowed: Callable[[OwnerId], bool],
 ) -> list[OwnerId]:
@@ -131,7 +131,7 @@ def _toposort_owners(
 def resolve_owners(
     *,
     enabled: Sequence[str],
-    manifest_index: dict[OwnerId, OwnerManifest],
+    manifest_index: Mapping[OwnerId, OwnerManifest],
 ) -> list[OwnerId]:
     """
     Resolve a list of enabled owners into a dependency-closed, conflict-free,
@@ -148,7 +148,7 @@ def resolve_owners(
 def resolve_owners_scoped(
     *,
     enabled: Sequence[str],
-    manifest_index: dict[OwnerId, OwnerManifest],
+    manifest_index: Mapping[OwnerId, OwnerManifest],
     allowed_scopes: frozenset[Scope] | None,
 ) -> list[OwnerId]:
     """
@@ -183,11 +183,12 @@ def resolve_repo_owner_ids(
     *,
     cfg_root: Path,
     enabled_repo_owner_ids: Sequence[str],
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
 ) -> list[OwnerId]:
     """
     Resolve repo owner ids, expanding repo-scoped dependencies only.
     """
-    idx = load_owner_manifest_index(cfg_root)
+    idx = manifest_index if manifest_index is not None else load_owner_manifest_index(cfg_root)
     return resolve_owners_scoped(
         enabled=enabled_repo_owner_ids,
         manifest_index=idx,
@@ -199,15 +200,15 @@ def resolve_host_owner_ids_implied_by_repo(
     *,
     cfg_root: Path,
     enabled_repo_owner_ids: Sequence[str],
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
 ) -> list[OwnerId]:
     """
     Compute host-scoped owner ids implied by a set of repo-scoped owner ids.
 
-    This is used by repo workflows that need to validate/ensure host prerequisites
-    (e.g. `repo/feature/uv` -> `host/feature/uv`) while keeping host mutations
-    explicit/opt-in.
+    This supports read-only validation and reporting for declarations such as
+    `repo/feature/uv` -> `host/feature/uv`; it never mutates a host.
     """
-    idx = load_owner_manifest_index(cfg_root)
+    idx = manifest_index if manifest_index is not None else load_owner_manifest_index(cfg_root)
     resolved_all = resolve_owners_scoped(
         enabled=enabled_repo_owner_ids,
         manifest_index=idx,
@@ -221,6 +222,7 @@ def resolve_host_owner_ids_for_host(
     cfg_root: Path,
     cfg_inventory: Inventory,
     host_settings: HostSettingsLike,
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
 ) -> list[OwnerId]:
     """
     Compute host-effective owner ids for host-scoped deploys.
@@ -257,7 +259,11 @@ def resolve_host_owner_ids_for_host(
         enabled.append(str(Scope.REPO.base_feature_id))
         enabled.extend(str(Scope.REPO.feature_id(feature)) for feature in loaded.settings.features)
 
-    idx = load_owner_manifest_index(cfg_root)
+    idx = (
+        manifest_index
+        if manifest_index is not None
+        else load_owner_manifest_index(cfg_root, inventory=cfg_inventory)
+    )
     resolved_all = resolve_owners_scoped(
         enabled=enabled,
         manifest_index=idx,

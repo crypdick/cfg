@@ -18,15 +18,16 @@ To support arbitrary cfg group names (including dashes), we inject them with
 
 from __future__ import annotations
 
-import os
 import pprint
 import shutil
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 
+from cfg.core.ids import OwnerId
 from cfg.core.inventory import Inventory
 from cfg.core.models import dedupe_preserve_order
-from cfg.core.owners import resolve_host_owner_ids_for_host
+from cfg.core.owners import OwnerManifest, load_owner_manifest_index, resolve_host_owner_ids_for_host
 from cfg.core.protocols import HostSettingsLike
 from cfg.deploys.host_data import CFG_HOST_NAME, CFG_HOST_OWNER_IDS, CFG_ROOT
 from cfg.pyinfra._vfork import VFORK_SOURCE_SNIPPET
@@ -67,7 +68,13 @@ def _jsonish(value: object) -> object:
     return str(value)
 
 
-def _host_data(*, settings: HostSettingsLike, cfg_root: Path, cfg_inventory: Inventory) -> dict[str, object]:
+def _host_data(
+    *,
+    settings: HostSettingsLike,
+    cfg_root: Path,
+    cfg_inventory: Inventory,
+    manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
+) -> dict[str, object]:
     data: dict[str, object] = {}
 
     data[CFG_HOST_NAME] = str(settings.name)
@@ -75,6 +82,7 @@ def _host_data(*, settings: HostSettingsLike, cfg_root: Path, cfg_inventory: Inv
         cfg_root=cfg_root,
         cfg_inventory=cfg_inventory,
         host_settings=settings,  # pyright: ignore[reportArgumentType] — conforms to HostSettingsLike; callers pass HostSettings
+        manifest_index=manifest_index,
     )
 
     # Commonly useful inventory material for future deploys (safe strings).
@@ -132,6 +140,7 @@ def build_groups(
 
     # We'll store per-host data in the `all` group as (name, data) tuples.
     all_hosts: list[Host] = []
+    manifest_index = load_owner_manifest_index(cfg_root, inventory=cfg_inventory)
 
     # Additional groups: group_name -> [host_name, ...]
     groups: dict[str, list[str]] = {}
@@ -142,7 +151,12 @@ def build_groups(
     for loaded in cfg_inventory.hosts.values():
         h = loaded.settings
         name = str(h.name)
-        data = _host_data(settings=h, cfg_root=cfg_root, cfg_inventory=cfg_inventory)
+        data = _host_data(
+            settings=h,
+            cfg_root=cfg_root,
+            cfg_inventory=cfg_inventory,
+            manifest_index=manifest_index,
+        )
         data[CFG_ROOT] = str(cfg_root)
         all_hosts.append((name, data))
 
@@ -154,19 +168,15 @@ def build_groups(
         local_data: dict[str, object] = {CFG_HOST_NAME: str(current_host_for_local or "")}
         local_settings = cfg_inventory.host_get(current_host_for_local) if current_host_for_local else None
         if local_settings:
-            local_data = _host_data(settings=local_settings, cfg_root=cfg_root, cfg_inventory=cfg_inventory)
+            local_data = _host_data(
+                settings=local_settings,
+                cfg_root=cfg_root,
+                cfg_inventory=cfg_inventory,
+                manifest_index=manifest_index,
+            )
 
         local_name = "@local"
         local_data[CFG_ROOT] = str(cfg_root)
-
-        # Allow callers to explicitly augment local host owner ids (eg `cfg repo apply --ensure-host`).
-        extra_raw = (os.environ.get("CFG_EXTRA_HOST_OWNER_IDS") or "").strip()
-        if extra_raw:
-            extra = [s.strip() for s in extra_raw.split(",") if s.strip()]
-            if extra:
-                existing = local_data.get(CFG_HOST_OWNER_IDS) or []
-                if isinstance(existing, list):
-                    local_data[CFG_HOST_OWNER_IDS] = dedupe_preserve_order([*map(str, existing), *extra])
 
         all_hosts.append((local_name, local_data))
 

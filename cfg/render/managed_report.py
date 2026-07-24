@@ -1,10 +1,4 @@
-"""Shared rendering for the host/repo "managed files" reports.
-
-Both `cfg host managed` and `cfg repo settings` print the same three sections
-(linked / mirrored / generated) of `relpath -> (owner, src)` entries. This
-module owns that rendering and the generated-template-source derivation so the
-two command surfaces stay identical instead of drifting apart.
-"""
+"""Shared rendering for host/repo managed-file reports."""
 
 from __future__ import annotations
 
@@ -47,12 +41,13 @@ def format_managed_sections(
     *,
     linked: Mapping[Path, object],
     mirrored: Mapping[Path, object],
-    generated: Mapping[Path, object],
+    generated: Mapping[Path, object] | None = None,
 ) -> list[str]:
-    """Render the linked/mirrored/generated report block (blank-line separated)."""
+    """Render supported managed-file sections, separated by blank lines."""
     lines = _format_section(header="linked", desired=linked)
     lines.append("")
     lines.extend(_format_section(header="mirrored", desired=mirrored))
-    lines.append("")
-    lines.extend(_format_section(header="generated", desired=generated))
+    if generated is not None:
+        lines.append("")
+        lines.extend(_format_section(header="generated", desired=generated))
     return lines

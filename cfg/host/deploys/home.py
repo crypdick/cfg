@@ -27,7 +27,6 @@ from cfg.core.errors import CfgError
 from cfg.core.ids import parse_host_name
 from cfg.deploys.host_data import CFG_HOST_NAME, cfg_root_from_host_data, owner_ids_from_host_data
 from cfg.host.deploys.feature_deploys import deploy_features
-from cfg.host.deploys.pkg import pkg_update, pkg_upgrade
 from cfg.host.managed_home import HomePlan, managed_home_roots, resolve_host_home_plan
 from cfg.owners.fs import OwnerFile
 
@@ -151,11 +150,4 @@ def deploy_apply_home() -> None:
             )
 
     # Run feature-specific deploys after home files are in place.
-    # These configure third-party APT repos (keyrings + sources.list.d) and
-    # install feature-specific packages. Must run before the global apt
-    # package refresh so invalid source entries are cleared before apt fetches.
     deploy_features()
-
-    # Refresh package metadata and install available versions (apt or brew).
-    pkg_update()
-    pkg_upgrade()

@@ -15,6 +15,7 @@ from cfg.core.owners import (
     owner_id_to_dir,
     owner_scope,
     resolve_host_owner_ids_for_host,
+    resolve_host_owner_ids_implied_by_repo,
 )
 from cfg.core.scope import Scope
 from cfg.host.managed_home import resolve_host_home_plan
@@ -54,7 +55,7 @@ def _validate_deploy_entrypoints(
 def validate_configuration(cfg_root: Path) -> ValidationReport:
     """Parse and resolve every configured host, repo, output, and deploy."""
     inventory = load_inventory(cfg_root)
-    manifest_index = load_owner_manifest_index(cfg_root)
+    manifest_index = load_owner_manifest_index(cfg_root, inventory=inventory)
 
     host_owner_ids = [owner_id for owner_id in manifest_index if owner_scope(owner_id) is Scope.HOST]
     _validate_deploy_entrypoints(
@@ -74,11 +75,18 @@ def validate_configuration(cfg_root: Path) -> ValidationReport:
         owner_ids = resolved_repo_owner_ids(
             cfg_root=cfg_root,
             cfg=repo_loaded.settings,
+            manifest_index=manifest_index,
+        )
+        resolve_host_owner_ids_implied_by_repo(
+            cfg_root=cfg_root,
+            enabled_repo_owner_ids=owner_ids,
+            manifest_index=manifest_index,
         )
         outputs = resolve_repo_outputs(
             cfg_root=cfg_root,
             repo_id=repo_id,
             enabled_owner_ids=owner_ids,
+            manifest_index=manifest_index,
             path_provider_overrides=repo_loaded.settings.path_provider_overrides,
         )
         for write in outputs.generated:
@@ -89,11 +97,13 @@ def validate_configuration(cfg_root: Path) -> ValidationReport:
             cfg_root=cfg_root,
             cfg_inventory=inventory,
             host_settings=host_loaded.settings,
+            manifest_index=manifest_index,
         )
         resolve_host_home_plan(
             cfg_root=cfg_root,
             host=host_loaded.settings.name,
             enabled_owner_ids=owner_ids,
+            manifest_index=manifest_index,
         )
 
     return ValidationReport(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cfg.core.errors import CfgError
 from cfg.core.subprocess import run_cmd
 
 
@@ -49,5 +50,7 @@ def staged_paths(repo: Path) -> list[str]:
 
 
 def staged_file_content(repo: Path, relpath: str) -> str | None:
-    out = run_cmd(["git", "show", f":{relpath}"], cwd=repo, check=False, strip=False)
-    return out or None
+    try:
+        return run_cmd(["git", "show", f":{relpath}"], cwd=repo, strip=False)
+    except CfgError:
+        return None

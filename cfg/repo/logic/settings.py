@@ -6,13 +6,13 @@ from pathlib import Path
 
 from cfg.core.context import CfgContext
 from cfg.core.errors import CfgError
-from cfg.core.ids import OwnerId, RepoId
+from cfg.core.ids import OwnerId
 from cfg.core.models import RepoSettings
-from cfg.core.owners import load_owner_manifest_index
+from cfg.core.owners import OwnerManifest
 from cfg.owners.fs import OwnerFile, owner_mirror_files, resolve_owner_files
 from cfg.render.generated import resolve_generated_targets
 from cfg.render.managed_report import format_managed_sections, generated_sources
-from cfg.repo.cli_common import repo_enabled_owner_ids, repo_owner_id
+from cfg.repo.cli_common import resolved_repo_owner_ids
 from cfg.repo.git import git_config_get, git_dir, origin_url, repo_root
 
 
@@ -80,32 +80,32 @@ def _settings_linked_files(*, repo_root: Path, cfg_root: Path) -> Mapping[Path, 
 def _settings_enabled_owner_ids(
     *,
     cfg_root: Path,
-    repo_id: RepoId,
     repo_cfg: RepoSettings,
+    manifest_index: Mapping[OwnerId, OwnerManifest],
 ) -> list[OwnerId]:
-    manifest_index = load_owner_manifest_index(cfg_root)
-
-    # Settings is a best-effort report. We intentionally DO NOT dependency-resolve here,
-    # because missing feature metadata should not break `cfg repo settings`.
-    enabled = [o for o in repo_enabled_owner_ids(repo_cfg) if o in manifest_index]
-
-    repo_owner = repo_owner_id(repo_id)
-    if repo_owner in manifest_index and repo_owner not in enabled:
-        enabled = [*enabled, repo_owner]
-    return enabled
+    return resolved_repo_owner_ids(
+        cfg_root=cfg_root,
+        cfg=repo_cfg,
+        manifest_index=manifest_index,
+    )
 
 
 def _settings_mirrored_files(
     *,
     cfg_root: Path,
-    repo_id: RepoId,
     repo_cfg: RepoSettings,
+    manifest_index: Mapping[OwnerId, OwnerManifest],
 ) -> Mapping[Path, object]:
-    enabled_owner_ids = _settings_enabled_owner_ids(cfg_root=cfg_root, repo_id=repo_id, repo_cfg=repo_cfg)
+    enabled_owner_ids = _settings_enabled_owner_ids(
+        cfg_root=cfg_root,
+        repo_cfg=repo_cfg,
+        manifest_index=manifest_index,
+    )
     resolved = resolve_owner_files(
         cfg_root=cfg_root,
         enabled_owner_ids=enabled_owner_ids,
         file_getter=lambda cfg, owner_id: owner_mirror_files(cfg_root=cfg, owner_id=owner_id),
+        manifest_index=manifest_index,
         path_provider_overrides=(repo_cfg.path_provider_overrides or None),
         conflict_error_prefix="Mirror conflict",
     )
@@ -115,13 +115,18 @@ def _settings_mirrored_files(
 def _settings_generated_files(
     *,
     cfg_root: Path,
-    repo_id: RepoId,
     repo_cfg: RepoSettings,
+    manifest_index: Mapping[OwnerId, OwnerManifest],
 ) -> Mapping[Path, object]:
-    enabled_owner_ids = _settings_enabled_owner_ids(cfg_root=cfg_root, repo_id=repo_id, repo_cfg=repo_cfg)
+    enabled_owner_ids = _settings_enabled_owner_ids(
+        cfg_root=cfg_root,
+        repo_cfg=repo_cfg,
+        manifest_index=manifest_index,
+    )
     gt = resolve_generated_targets(
         cfg_root=cfg_root,
         enabled_owner_ids=enabled_owner_ids,
+        manifest_index=manifest_index,
         path_provider_overrides=(repo_cfg.path_provider_overrides or None),
         conflict_error_prefix="Generated artifact conflict",
     )
@@ -181,9 +186,18 @@ def settings() -> list[str]:
     lines.append("# Detailed list of specific files being managed")
     lines.append("")
 
+    snapshot = ctx.snapshot
     linked = _settings_linked_files(repo_root=rr, cfg_root=ctx.root)
-    mirrored = _settings_mirrored_files(cfg_root=ctx.root, repo_id=rid, repo_cfg=cfg)
-    generated = _settings_generated_files(cfg_root=ctx.root, repo_id=rid, repo_cfg=cfg)
+    mirrored = _settings_mirrored_files(
+        cfg_root=ctx.root,
+        repo_cfg=cfg,
+        manifest_index=snapshot.manifest_index,
+    )
+    generated = _settings_generated_files(
+        cfg_root=ctx.root,
+        repo_cfg=cfg,
+        manifest_index=snapshot.manifest_index,
+    )
 
     lines.extend(format_managed_sections(linked=linked, mirrored=mirrored, generated=generated))
     return lines
