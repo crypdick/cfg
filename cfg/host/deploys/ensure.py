@@ -79,3 +79,46 @@ def ensure_apt_repo(
         mode="0644",
         _sudo=True,
     )
+
+
+def reconcile_stale_apt_repos() -> None:
+    """
+    Remove cfg-managed APT source files whose repo is no longer reachable (no-op on non-apt systems).
+
+    Third-party repos added via `ensure_apt_repo` (NodeSource, HashiCorp, GitHub CLI,
+    ProtonVPN, ...) can rot when upstream moves a dist path or codename (e.g. NodeSource
+    dropping the `node_lts.x` alias). Once a stale file lands in
+    `/etc/apt/sources.list.d/`, `apt-get update` fails system-wide until it's removed --
+    blocking *every* subsequent apt operation, including ones unrelated to the broken repo,
+    and even after the owning feature's `deploy.py` has been fixed to write correct
+    contents (that fix can't take effect until an apt operation reaches it, which never
+    happens if an earlier, unrelated apt operation dies first).
+
+    Call this once, first thing, before any feature deploy performs an apt operation.
+    Only touches files matching our own `signed-by=/etc/apt/keyrings/...` convention (i.e.
+    files this module wrote), never hand-maintained or vendor-installed apt sources.
+    """
+    if not is_linux():
+        return
+
+    script = """
+for f in /etc/apt/sources.list.d/*.list; do
+    [ -f "$f" ] || continue
+    grep -q "signed-by=/etc/apt/keyrings/" "$f" || continue
+    rest="$(grep -m1 "^deb " "$f" | sed -E "s/^deb +\\[[^]]*\\] +//")"
+    url="$(echo "$rest" | awk '{print $1}')"
+    dist="$(echo "$rest" | awk '{print $2}')"
+    [ -n "$url" ] && [ -n "$dist" ] || continue
+    if ! (wget -q --spider "$url/dists/$dist/Release" 2>/dev/null \\
+            || curl -fsSL -o /dev/null "$url/dists/$dist/Release" 2>/dev/null); then
+        echo "Removing unreachable apt repo: $f ($url/dists/$dist/Release)" >&2
+        rm -f "$f"
+    fi
+done
+""".strip()
+
+    server.shell(
+        name="Remove unreachable cfg-managed APT repo files",
+        commands=[script],
+        _sudo=True,
+    )
