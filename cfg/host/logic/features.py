@@ -14,6 +14,7 @@ from cfg.core.feature_validation import (
 from cfg.core.owners import (
     FeatureManifest,
     feature_manifest_to_bytes,
+    resolve_host_owner_ids_for_host,
 )
 from cfg.core.scope import Scope
 from cfg.host.cli_common import host_ctx, require_registered_host
@@ -129,7 +130,7 @@ def features_delete(*, feature: str, dry_run: bool = False) -> list[str]:
 
     Safety checks:
     1. Validates feature exists
-    2. Checks if any host is using this feature
+    2. Checks manifest dependencies and effective host owner sets
     3. If in use, errors and tells user to run 'remove' first
     4. If not in use, deletes the feature directory
     """
@@ -143,12 +144,27 @@ def features_delete(*, feature: str, dry_run: bool = False) -> list[str]:
     if not feature_path.exists():
         return [f"ok (not found): {f}"]
 
-    # Check all hosts to see if any use this feature
-    hosts_using_feature: list[str] = []
-    for host_name, host_entry in ctx.store.inventory.hosts.items():
-        host_features = list(host_entry.settings.features)
-        if f in host_features:
-            hosts_using_feature.append(host_name)
+    snapshot = ctx.snapshot
+    owner_id = Scope.HOST.feature_id(f)
+    dependents = sorted(
+        owner for owner, manifest in snapshot.manifest_index.items() if owner_id in manifest.requires
+    )
+    if dependents:
+        raise CfgError(
+            f"Cannot delete feature '{f}': required by {', '.join(dependents)}. "
+            "Remove those dependency declarations first."
+        )
+    hosts_using_feature = [
+        host_name
+        for host_name, entry in snapshot.inventory.hosts.items()
+        if owner_id
+        in resolve_host_owner_ids_for_host(
+            cfg_root=ctx.root,
+            cfg_inventory=snapshot.inventory,
+            host_settings=entry.settings,
+            manifest_index=snapshot.manifest_index,
+        )
+    ]
 
     # If any host uses it, error
     if hosts_using_feature:

@@ -290,3 +290,37 @@ def test_repo_features_remove_idempotent_not_enabled(tmp_path: Path, monkeypatch
     out = repo_features.features_remove(feature="uv", dry_run=False)
     assert out
     assert "ok (not enabled)" in out[0]
+
+
+@pytest.mark.parametrize("dependent_scope", ["host", "repo"])
+def test_delete_rejects_feature_dependencies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dependent_scope: str
+) -> None:
+    from cfg.core.errors import CfgError
+    from cfg.host.logic.features import features_delete
+
+    cfg_root = _setup_cfg_root(tmp_path)
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    dependency = cfg_root / "features/host/dep"
+    _write(dependency / "feature.toml", "")
+    _write(dependency / "overlay/valuable", "keep me")
+    key = "requires" if dependent_scope == "host" else "host_requires"
+    _write(cfg_root / f"features/{dependent_scope}/app/feature.toml", f'{key} = ["dep"]\n')
+    with pytest.raises(CfgError, match="app"):
+        features_delete(feature="dep")
+    assert (dependency / "overlay/valuable").read_text() == "keep me"
+
+
+def test_delete_unreferenced_feature(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from cfg.host.logic.features import features_delete
+
+    cfg_root = _setup_cfg_root(tmp_path)
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    path = cfg_root / "features/host/unused"
+    _write(path / "feature.toml", "")
+    assert features_delete(feature="unused", dry_run=True) == [f"would delete: {path}"]
+    assert path.exists()
+    assert features_delete(feature="unused") == [f"deleted: {path}"]
+    assert not path.exists()

@@ -139,3 +139,36 @@ sources list file to ensure both are world-readable.
 - Use facts for conditional logic (`Which`, `Home`, `File`, `Command`)
 - Reuse `ensure_command()` from `cfg.host.deploys.pkg` for simple
   "ensure binary exists" patterns (cross-platform: apt on Linux, brew on macOS)
+
+## Source preparation
+
+Move third-party source setup from `deploy.py` into an optional `prepare.py`
+beside it, with the same `main()` entrypoint. Both feature and host-specific
+owners support this file. During `cfg host apply`, all enabled owners prepare
+in dependency order before any owner deploy runs. `cfg host upgrade` also runs
+preparation before refreshing package metadata.
+
+Keep preparation limited to source reconciliation; do not install packages or
+refresh package metadata there. Use `ensure_apt_repo()` to write the desired
+source line before unrelated package operations can encounter an obsolete one.
+Existing calls inside `deploy.py` still work but do not run early; move them to
+`prepare.py` to obtain that ordering. Key-download tools must already be available.
+
+Retire a source explicitly, using its complete previous contents:
+
+```python
+from cfg.host.deploys.ensure import remove_apt_repo
+
+
+def main():
+    remove_apt_repo(
+        repo_filename="retired-example",
+        expected_content="deb [signed-by=/etc/apt/keyrings/example.gpg] https://repo.example.com old main\n",
+    )
+```
+
+Only that named regular file is removed, and only if its SHA-256 matches the
+expected contents. Missing files are a no-op; modified files cause a conflict.
+There is no reachability sweep: DNS failures, HTTP errors, and a shared keyring
+location do not authorize deleting an APT source. To retire a disabled feature's
+source, keep the explicit retirement in an enabled owner's preparation file.

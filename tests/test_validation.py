@@ -79,3 +79,29 @@ def test_validate_configuration_checks_repo_host_requirements(tmp_path: Path) ->
 
     with pytest.raises(CfgError, match="Feature not found: host/feature/missing"):
         validate_configuration(tmp_path)
+
+
+def test_host_override_uses_canonical_owner_sequence(tmp_path: Path) -> None:
+    _valid_configuration(tmp_path)
+    _write(tmp_path / "features/host/base/overlay/x", "base")
+    _write(tmp_path / "hosts/laptop/overlay/x", "host")
+    assert validate_configuration(tmp_path).hosts == 1
+
+
+def test_validate_rejects_invalid_preparation_entrypoint(tmp_path: Path) -> None:
+    _valid_configuration(tmp_path)
+    _write(tmp_path / "hosts/laptop/prepare.py", "VALUE = 1\n")
+    with pytest.raises(CfgError, match=r"callable main\(\).*prepare.py"):
+        validate_configuration(tmp_path)
+
+
+def test_host_report_uses_same_overrides_as_apply(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from cfg.host.logic.managed import managed
+
+    _valid_configuration(tmp_path)
+    monkeypatch.setenv("CFG_ROOT", str(tmp_path))
+    _write(tmp_path / "features/host/base/overlay/x", "base")
+    _write(tmp_path / "hosts/laptop/overlay/x", "host")
+    lines = managed(host="laptop")
+    assert any("x" in line for line in lines)
+    assert validate_configuration(tmp_path).hosts == 1

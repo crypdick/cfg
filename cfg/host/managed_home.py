@@ -15,11 +15,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cfg.core.errors import CfgError
-from cfg.core.fs import iter_files
 from cfg.core.ids import HostName, OwnerId
 from cfg.core.owners import OwnerManifest, load_owner_manifest_index
-from cfg.host.fs import host_home_root, host_specific_home_files
+from cfg.host.fs import HOST_HOME_PROVIDER, host_specific_home_files
 from cfg.owners.fs import OwnerFile, owner_overlay_files
+from cfg.owners.providers import select_path_providers
 
 
 @dataclass(frozen=True)
@@ -35,44 +35,34 @@ def resolve_host_home_plan(
     enabled_owner_ids: Sequence[OwnerId],
     manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
 ) -> HomePlan:
-    desired: dict[Path, OwnerFile] = {}
-
     if manifest_index is None:
         manifest_index = load_owner_manifest_index(cfg_root)
 
-    # Owner-provided home overlay files.
-    providers_by_rel: dict[Path, list[OwnerId]] = {}
-    for owner_id in enabled_owner_ids or []:
-        if owner_id not in manifest_index:
-            raise CfgError(f"Unknown owner (not in manifest index): {owner_id}")
-        for of in owner_overlay_files(cfg_root=cfg_root, owner_id=owner_id):
-            providers_by_rel.setdefault(of.rel, []).append(owner_id)
-            desired[of.rel] = of
+    host_owner = OwnerId(f"host/{host}")
+    payloads = {
+        owner: owner_overlay_files(cfg_root=cfg_root, owner_id=owner)
+        for owner in manifest_index
+        if owner != host_owner
+    }
+    providers: dict[Path, list[OwnerFile]] = {}
+    for owner in dict.fromkeys(enabled_owner_ids):
+        if owner == host_owner:
+            continue
+        if owner not in payloads:
+            raise CfgError(f"Unknown owner (not in manifest index): {owner}")
+        for file in payloads[owner]:
+            providers.setdefault(file.rel, []).append(file)
 
-    # Hard error on multiple providers (single-provider invariant).
-    conflicts = sorted(
-        [rel for rel, owners in providers_by_rel.items() if len(set(owners)) > 1], key=lambda p: p.as_posix()
+    host_files = host_specific_home_files(cfg_root, host)
+    for file in host_files:
+        providers.setdefault(file.rel, []).append(file)
+    desired = select_path_providers(
+        providers,
+        path_provider_overrides={str(file.rel): HOST_HOME_PROVIDER for file in host_files},
+        conflict_error_prefix="Home owner conflict",
     )
-    if conflicts:
-        msg = "\n".join(f"- {rel} (providers={sorted(set(providers_by_rel[rel]))})" for rel in conflicts)
-        raise CfgError(f"Home owner conflict detected:\n{msg}")
-
-    # Host-specific overrides win.
-    for tf in host_specific_home_files(cfg_root, host):
-        desired[tf.rel] = tf
-
-    all_rels: set[Path] = set()
-
-    # Track all owner-provided home files (for stale symlink cleanup).
-    for owner_id in manifest_index:
-        for of in owner_overlay_files(cfg_root=cfg_root, owner_id=owner_id):
-            all_rels.add(of.rel)
-
-    # Track all host-specific home files too.
-    host_root = host_home_root(cfg_root, host)
-    for src in iter_files(host_root):
-        all_rels.add(src.relative_to(host_root))
-
+    all_rels = {file.rel for files in payloads.values() for file in files}
+    all_rels.update(file.rel for file in host_files)
     return HomePlan(desired=desired, all_known_rels=all_rels)
 
 

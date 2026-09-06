@@ -5,17 +5,23 @@ from __future__ import annotations
 import importlib.util
 from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 from cfg.core.owners import FeatureOwner, HostOwner, owner_id_to_dir, parse_owner_ref
 from cfg.core.scope import Scope
 
 
-def discover_host_deploy(cfg_root: Path, owner_id: str) -> Callable[[], None] | None:
+def discover_host_deploy(
+    cfg_root: Path,
+    owner_id: str,
+    *,
+    filename: Literal["deploy.py", "prepare.py"] = "deploy.py",
+) -> Callable[[], None] | None:
     """
     Discover deploy function for an owner.
 
-    Convention: <owner_dir>/deploy.py with main() function.
+    Convention: <owner_dir>/{deploy,prepare}.py with main() function.
+    NOTE: docs/pyinfra-idioms.md, Source preparation describes the phase contract.
     Supports both feature deploys (host/feature/*) and host-specific deploys (host/<hostname>).
     Returns None if no deploy exists.
     """
@@ -30,7 +36,7 @@ def discover_host_deploy(cfg_root: Path, owner_id: str) -> Callable[[], None] | 
         return None
 
     owner_dir = owner_id_to_dir(cfg_root, owner.id)
-    deploy_file = owner_dir / "deploy.py"
+    deploy_file = owner_dir / filename
 
     if deploy_file.exists():
         deploy_name = owner.id.replace("/", "_")

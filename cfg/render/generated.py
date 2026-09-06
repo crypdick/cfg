@@ -26,6 +26,7 @@ from jinja2 import Environment, FileSystemLoader
 from cfg.core.errors import CfgError
 from cfg.core.ids import OwnerId
 from cfg.core.owners import OwnerManifest, load_owner_manifest_index, owner_id_to_dir
+from cfg.owners.providers import select_path_providers
 
 
 @dataclass(frozen=True)
@@ -97,36 +98,11 @@ def resolve_generated_targets(
         for gt in _generated_from_manifest(owner_id=owner_id, manifest=manifest):
             providers.setdefault(gt.rel, []).append(gt)
 
-    desired: dict[Path, GeneratedTarget] = {}
-    conflicts: list[str] = []
-
-    for rel, gts in sorted(providers.items(), key=lambda kv: str(kv[0])):
-        if len(gts) == 1:
-            desired[rel] = gts[0]
-            continue
-
-        override = path_provider_overrides.get(str(rel))
-        if override:
-            matches = [gt for gt in gts if gt.owner == override]
-            if len(matches) == 1:
-                desired[rel] = matches[0]
-                continue
-            providers_list = ", ".join(sorted({gt.owner for gt in gts}))
-            conflicts.append(f"{rel} (override={override!r} not among providers: {providers_list})")
-            continue
-
-        providers_list = ", ".join(sorted({gt.owner for gt in gts}))
-        conflicts.append(f"{rel} (multiple providers: {providers_list})")
-
-    if conflicts:
-        msg = "\n".join(f"- {c}" for c in conflicts)
-        raise CfgError(
-            f"{conflict_error_prefix} detected between enabled owners:\n"
-            f"{msg}\n\n"
-            "Fix by:\n"
-            "- removing one of the conflicting owners, or\n"
-            "- adding an explicit path provider override in settings\n"
-        )
+    desired = select_path_providers(
+        providers,
+        path_provider_overrides=path_provider_overrides,
+        conflict_error_prefix=conflict_error_prefix,
+    )
 
     return ResolvedGeneratedTargets(desired=desired)
 

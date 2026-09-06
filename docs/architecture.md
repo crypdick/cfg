@@ -152,6 +152,10 @@ Repo operations are direct local Python operations. A pure planning phase resolv
 sources, destinations, conflicts, prerequisites, and stale owned outputs before writes
 begin. Dry-run prints that plan; apply executes it.
 
+Mirrors and generated files share an atomic write operation containing captured
+bytes and permissions. Overlay removal carries the exact recorded target;
+unrecorded links are not automatically adopted for cleanup.
+
 Pyinfra is not used for repo targets.
 
 ### Host targets
@@ -165,7 +169,8 @@ sandbox it. The tool exposes only the small context contract needed by those dep
 Host-specific `hosts/<name>/deploy.py` entrypoints participate in the same resolved
 owner sequence as host feature deploys.
 
-`cfg host apply` applies home files and trusted deploys. Package refresh and upgrades
+`cfg host apply` applies home files, prepares sources for all enabled owners
+through optional `prepare.py` entrypoints, then runs trusted deploys. Package refresh and upgrades
 are an explicit second operation, `cfg host upgrade`, so routine configuration changes
 do not perform unrelated system-wide mutation.
 

@@ -56,6 +56,15 @@ def safe_relpath(raw: str) -> Path:
     return p
 
 
+def safe_managed_relpath(raw: str) -> Path:
+    """Validate a payload destination, excluding repository metadata and cfg state."""
+    rel = safe_relpath(raw)
+    # NOTE: README.md, Managed-path safety documents these reserved destinations.
+    if rel == Path() or ".git" in rel.parts or rel.parts[0] == ".cfg":
+        raise ValueError(f"Refusing to manage reserved path: {raw!r}")
+    return rel
+
+
 def safe_repo_id_path(repo_id: str) -> Path:
     """
     Convert a normalized repo id like `owner/repo` into a safe Path for
@@ -229,8 +238,6 @@ class RepoStateManifest(BaseModel):
     ) -> dict[str, ManagedPathState]:
         out: dict[str, ManagedPathState] = {}
         for raw, state in values.items():
-            rel = safe_relpath(raw)
-            if rel == Path():
-                raise ValueError("Managed path cannot be the repo root")
+            rel = safe_managed_relpath(raw)
             out[rel.as_posix()] = state
         return out

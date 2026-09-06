@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import filecmp
 import hashlib
-import shutil
 import stat
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from cfg.core.errors import CfgError
 from cfg.core.ids import OwnerId
-from cfg.core.models import ManagedPathState, RepoStateManifest, safe_relpath
+from cfg.core.models import ManagedPathState, RepoStateManifest, safe_managed_relpath
 from cfg.core.owners import OwnerManifest
 from cfg.core.state import read_repo_state, write_repo_state
 from cfg.owners.fs import (
@@ -33,6 +32,7 @@ from cfg.render.generated import (
 @dataclass(frozen=True)
 class RemoveOverlay:
     rel: Path
+    expected_target: Path
 
 
 @dataclass(frozen=True)
@@ -51,20 +51,16 @@ class LinkOverlay:
 
 
 @dataclass(frozen=True)
-class CopyMirror:
+class WriteFile:
     owner: str
+    kind: Literal["mirror", "generated"]
     rel: Path
-    src: Path
+    content: bytes
+    mode: int
+    source: str
 
 
-@dataclass(frozen=True)
-class WriteGenerated:
-    owner: str
-    rel: Path
-    content: str
-
-
-RepoOperation = RemoveOverlay | RemoveManaged | LinkOverlay | CopyMirror | WriteGenerated
+RepoOperation = RemoveOverlay | RemoveManaged | LinkOverlay | WriteFile
 
 
 @dataclass(frozen=True)
@@ -110,11 +106,9 @@ def _digest_file(path: Path) -> str:
 
 def _safe_destination(*, repo_root: Path, rel: Path) -> Path:
     try:
-        normalized = safe_relpath(rel.as_posix())
+        normalized = safe_managed_relpath(rel.as_posix())
     except ValueError as e:
-        raise CfgError(f"Unsafe managed repo path: {rel}") from e
-    if normalized == Path():
-        raise CfgError("Refusing to manage the repo root itself.")
+        raise CfgError(str(e)) from e
     return repo_root / normalized
 
 
@@ -123,20 +117,6 @@ def _resolved_link_target(path: Path) -> Path:
     if not target.is_absolute():
         target = path.parent / target
     return target.resolve(strict=False)
-
-
-def _is_cfg_owned_overlay(*, path: Path, cfg_root: Path) -> bool:
-    if not path.is_symlink():
-        return False
-    target = _resolved_link_target(path)
-    for root in (cfg_root / "features" / "repo", cfg_root / "repos"):
-        try:
-            rel = target.relative_to(root.resolve())
-        except ValueError:
-            continue
-        if "overlay" in rel.parts:
-            return True
-    return False
 
 
 def _validate_source(*, cfg_root: Path, source: Path, label: str) -> Path:
@@ -234,6 +214,7 @@ def resolve_repo_outputs(
         ("generated", {write.rel: write for write in generated}),
     ):
         for rel in rels:
+            _safe_destination(repo_root=Path(), rel=rel)
             previous = desired_kinds.get(rel)
             if previous is not None:
                 conflicts.append(f"{rel} ({previous} vs {kind})")
@@ -258,9 +239,8 @@ def _validate_operations(plan: RepoApplyPlan) -> None:
         _validate_parent_path(repo_root=plan.repo_root, rel=operation.rel, conflicts=conflicts)
 
         if isinstance(operation, RemoveOverlay):
-            if (dest.exists() or dest.is_symlink()) and not _is_cfg_owned_overlay(
-                path=dest,
-                cfg_root=plan.cfg_root,
+            if (dest.exists() or dest.is_symlink()) and not (
+                dest.is_symlink() and _resolved_link_target(dest) == operation.expected_target
             ):
                 conflicts.append(f"{operation.rel} (stale overlay is no longer a cfg-owned symlink)")
             continue
@@ -315,7 +295,6 @@ def build_repo_apply_plan(
 
     operations: list[RepoOperation] = []
     desired_state: dict[str, ManagedPathState] = {}
-    stale_overlay_rels: set[Path] = set()
     desired_rels = {
         *overlays.desired,
         *mirrors.desired,
@@ -323,15 +302,16 @@ def build_repo_apply_plan(
     }
 
     for raw_rel, prior in sorted((previous_state or RepoStateManifest()).managed.items()):
-        rel = safe_relpath(raw_rel)
+        rel = safe_managed_relpath(raw_rel)
         if rel in desired_rels:
             continue
         dest = _safe_destination(repo_root=repo_root, rel=rel)
         if not dest.exists() and not dest.is_symlink():
             continue
         if prior.kind == "overlay":
-            operations.append(RemoveOverlay(rel=rel))
-            stale_overlay_rels.add(rel)
+            if prior.source is None or not Path(prior.source).is_absolute():
+                raise CfgError(f"{rel} (stale overlay has no recorded absolute source)")
+            operations.append(RemoveOverlay(rel=rel, expected_target=Path(prior.source)))
             continue
         operations.append(
             RemoveManaged(
@@ -341,13 +321,6 @@ def build_repo_apply_plan(
                 expected_digest=prior.digest,
             )
         )
-
-    for rel in sorted(overlays.all_known_rels - overlays.desired.keys(), key=lambda path: path.as_posix()):
-        if rel in stale_overlay_rels:
-            continue
-        dest = _safe_destination(repo_root=repo_root, rel=rel)
-        if _is_cfg_owned_overlay(path=dest, cfg_root=cfg_root):
-            operations.append(RemoveOverlay(rel=rel))
 
     for rel, owner_file in sorted(overlays.desired.items(), key=lambda item: item[0].as_posix()):
         source = _validate_source(cfg_root=cfg_root, source=owner_file.src, label="Overlay")
@@ -361,23 +334,42 @@ def build_repo_apply_plan(
 
     for rel, owner_file in sorted(mirrors.desired.items(), key=lambda item: item[0].as_posix()):
         source = _validate_source(cfg_root=cfg_root, source=owner_file.src, label="Mirror")
-        operations.append(CopyMirror(owner=owner_file.owner, rel=rel, src=source))
+        content = source.read_bytes()
+        operations.append(
+            WriteFile(
+                owner=owner_file.owner,
+                kind="mirror",
+                rel=rel,
+                content=content,
+                mode=stat.S_IMODE(source.stat().st_mode),
+                source=str(source),
+            )
+        )
         desired_state[rel.as_posix()] = ManagedPathState(
             kind="mirror",
             owner=OwnerId(owner_file.owner),
-            digest=_digest_file(source),
+            digest=_digest_bytes(content),
             source=str(source),
         )
 
     for write in generated_writes:
         if isinstance(write.src, str):
             _validate_source(cfg_root=cfg_root, source=Path(write.src), label="Generated template")
-        content = render_template_write_to_string(write)
-        operations.append(WriteGenerated(owner=write.owner, rel=write.rel, content=content))
+        content = render_template_write_to_string(write).encode("utf-8")
+        operations.append(
+            WriteFile(
+                owner=write.owner,
+                kind="generated",
+                rel=write.rel,
+                content=content,
+                mode=0o644,
+                source=str(write.src),
+            )
+        )
         desired_state[write.rel.as_posix()] = ManagedPathState(
             kind="generated",
             owner=write.owner,
-            digest=_digest_bytes(content.encode()),
+            digest=_digest_bytes(content),
             source=str(write.src),
         )
 
@@ -391,25 +383,24 @@ def build_repo_apply_plan(
     return plan
 
 
-def _write_generated(*, dest: Path, content: str) -> bool:
-    current = dest.read_text(encoding="utf-8") if dest.is_file() else None
+def _write_file(*, dest: Path, content: bytes, mode: int) -> bool:
+    current = dest.read_bytes() if dest.is_file() else None
     current_mode = stat.S_IMODE(dest.stat().st_mode) if dest.is_file() else None
-    if current == content and current_mode == 0o644:
+    if current == content and current_mode == mode:
         return False
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
+            mode="wb",
             dir=dest.parent,
             prefix=f".{dest.name}.cfg-",
             delete=False,
         ) as temporary:
             temporary.write(content)
             temporary_path = Path(temporary.name)
-        temporary_path.chmod(0o644)
+        temporary_path.chmod(mode)
         temporary_path.replace(dest)
     finally:
         if temporary_path is not None and temporary_path.exists():
@@ -440,11 +431,7 @@ def apply_repo_plan(plan: RepoApplyPlan) -> int:
             if not dest.is_symlink():
                 dest.symlink_to(operation.src)
                 changed += 1
-        elif isinstance(operation, CopyMirror):
-            if not dest.is_file() or not filecmp.cmp(operation.src, dest, shallow=False):
-                shutil.copy2(operation.src, dest)
-                changed += 1
-        elif _write_generated(dest=dest, content=operation.content):
+        elif _write_file(dest=dest, content=operation.content, mode=operation.mode):
             changed += 1
     state = read_repo_state(plan.repo_root)
     state.managed = dict(plan.managed)
@@ -462,8 +449,8 @@ def format_repo_plan(plan: RepoApplyPlan) -> list[str]:
             lines.append(f"- remove stale {operation.kind}: {operation.rel} ({operation.owner})")
         elif isinstance(operation, LinkOverlay):
             lines.append(f"- overlay: {operation.rel} <- {operation.src} ({operation.owner})")
-        elif isinstance(operation, CopyMirror):
-            lines.append(f"- mirror: {operation.rel} <- {operation.src} ({operation.owner})")
+        elif operation.kind == "mirror":
+            lines.append(f"- mirror: {operation.rel} <- {operation.source} ({operation.owner})")
         else:
             lines.append(f"- generate: {operation.rel} ({operation.owner})")
     return lines
