@@ -111,7 +111,7 @@ features = []
 
     monkeypatch.setattr(repo_apply_logic, "resolved_repo_owner_ids", lambda **_kw: [])
 
-    from cfg.repo.plan import CopyMirror, RepoApplyPlan
+    from cfg.repo.plan import RepoApplyPlan, WriteFile
 
     source = cfg_root / "source.txt"
     _write(source, "a\n")
@@ -119,10 +119,13 @@ features = []
         cfg_root=cfg_root,
         repo_root=repo_root,
         operations=(
-            CopyMirror(
+            WriteFile(
                 owner="repo/feature/x",
                 rel=Path("a.txt"),
-                src=source,
+                kind="mirror",
+                content=b"a\n",
+                mode=0o644,
+                source=str(source),
             ),
         ),
     )

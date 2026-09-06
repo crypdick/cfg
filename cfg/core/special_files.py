@@ -3,8 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cfg.core.errors import CfgError
-
-_BLOCKED_PARTS: set[str] = {".git"}
+from cfg.core.models import safe_managed_relpath
 
 
 class _BiMap:
@@ -70,10 +69,10 @@ def storage_rel_from_logical_rel(rel: Path) -> Path:
     Safety:
     - Rejects `.git` path components (we never want to manage/overlay git internals).
     """
-    rel = Path(rel)
-    blocked = [p for p in rel.parts if p in _BLOCKED_PARTS]
-    if blocked:
-        raise CfgError(f"Refusing to manage special git path component(s): {', '.join(sorted(set(blocked)))}")
+    try:
+        rel = safe_managed_relpath(str(rel))
+    except ValueError as e:
+        raise CfgError(str(e)) from e
 
     parts = [_SPECIAL_FILES.get_stored(p, p) or p for p in rel.parts]
     return Path(*parts)

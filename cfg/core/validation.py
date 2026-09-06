@@ -45,11 +45,12 @@ def _validate_deploy_entrypoints(
     owner_ids: Sequence[OwnerId],
 ) -> None:
     for owner_id in owner_ids:
-        deploy_path = owner_id_to_dir(cfg_root, owner_id) / "deploy.py"
-        if not deploy_path.is_file():
-            continue
-        if discover_host_deploy(cfg_root, owner_id) is None:
-            raise CfgError(f"Host deploy must define callable main(): {deploy_path}")
+        for filename in ("deploy.py", "prepare.py"):
+            deploy_path = owner_id_to_dir(cfg_root, owner_id) / filename
+            if not deploy_path.is_file():
+                continue
+            if discover_host_deploy(cfg_root, owner_id, filename=filename) is None:
+                raise CfgError(f"Host deploy must define callable main(): {deploy_path}")
 
 
 def validate_configuration(cfg_root: Path) -> ValidationReport:

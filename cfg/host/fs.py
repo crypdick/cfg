@@ -15,6 +15,7 @@ from pathlib import Path
 from cfg.core.errors import CfgError
 from cfg.core.fs import iter_files
 from cfg.core.ids import HostName, parse_host_name
+from cfg.core.special_files import logical_rel_from_storage_rel
 from cfg.owners.fs import OwnerFile
 
 HOST_HOME_PROVIDER = "@host"
@@ -44,6 +45,6 @@ def host_specific_home_files(cfg_root: Path, host: str) -> list[OwnerFile]:
     root = host_home_root(cfg_root, host)
     out: list[OwnerFile] = []
     for src in iter_files(root):
-        rel = src.relative_to(root)
+        rel = logical_rel_from_storage_rel(src.relative_to(root))
         out.append(OwnerFile(owner=HOST_HOME_PROVIDER, src=src, rel=rel))
     return out

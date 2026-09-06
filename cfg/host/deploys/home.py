@@ -26,7 +26,6 @@ from pyinfra.operations import files
 from cfg.core.errors import CfgError
 from cfg.core.ids import parse_host_name
 from cfg.deploys.host_data import CFG_HOST_NAME, cfg_root_from_host_data, owner_ids_from_host_data
-from cfg.host.deploys.ensure import reconcile_stale_apt_repos
 from cfg.host.deploys.feature_deploys import deploy_features
 from cfg.host.managed_home import HomePlan, managed_home_roots, resolve_host_home_plan
 from cfg.owners.fs import OwnerFile
@@ -149,11 +148,6 @@ def deploy_apply_home() -> None:
                 dest=dest,
                 mode=True,
             )
-
-    # Reconcile stale third-party apt repos before any feature deploy performs an apt
-    # operation (a stale repo file breaks apt-get update system-wide; see
-    # reconcile_stale_apt_repos docstring).
-    reconcile_stale_apt_repos()
 
     # Run feature-specific deploys after home files are in place.
     deploy_features()

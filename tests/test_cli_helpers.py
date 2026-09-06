@@ -91,7 +91,7 @@ def test_copy_to_managed_refuses_git_internal_paths(tmp_path: Path) -> None:
     dest_root = tmp_path / "dest"
     _write(src_root / ".git" / "config", "x")
 
-    with pytest.raises(CfgError, match="Refusing to manage special git path component"):
+    with pytest.raises(CfgError, match="reserved path"):
         copy_to_managed(src_root=src_root, dest_root=dest_root, rel=Path(".git"))
 
 

@@ -10,7 +10,6 @@ from cfg.core.state import read_repo_state
 from cfg.repo.plan import (
     LinkOverlay,
     RemoveManaged,
-    RemoveOverlay,
     apply_repo_plan,
     build_repo_apply_plan,
 )
@@ -247,7 +246,7 @@ def test_plan_rejects_cross_mode_and_nested_outputs(tmp_path: Path) -> None:
         )
 
 
-def test_plan_removes_only_stale_cfg_owned_overlay(tmp_path: Path) -> None:
+def test_plan_preserves_overlays_without_recorded_ownership(tmp_path: Path) -> None:
     cfg_root = tmp_path / "cfg"
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -266,9 +265,9 @@ def test_plan_removes_only_stale_cfg_owned_overlay(tmp_path: Path) -> None:
         enabled_owner_ids=[],
     )
 
-    assert plan.operations == (RemoveOverlay(rel=Path("old.txt")),)
-    assert apply_repo_plan(plan) == 1
-    assert not (repo_root / "old.txt").exists()
+    assert plan.operations == ()
+    assert apply_repo_plan(plan) == 0
+    assert (repo_root / "old.txt").is_symlink()
     assert (repo_root / "external.txt").is_symlink()
 
 
@@ -318,3 +317,130 @@ def test_plan_represents_overlay_sources_explicitly(tmp_path: Path) -> None:
             src=(owner_root / "overlay" / "x.txt").resolve(),
         ),
     )
+
+
+@pytest.mark.parametrize("mode", ["overlay", "mirror", "generated"])
+@pytest.mark.parametrize("rel", [".git/config", "nested/.git/HEAD", ".cfg/state.json"])
+def test_plan_rejects_reserved_destinations(tmp_path: Path, mode: str, rel: str) -> None:
+    cfg_root = tmp_path / "cfg"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    owner = _feature_root(cfg_root, "demo")
+    _write(
+        owner / "feature.toml",
+        _owner_manifest("repo/feature/demo", generated=[rel] if mode == "generated" else []),
+    )
+    payload = owner / "render" / "templates" / f"{rel}.j2" if mode == "generated" else owner / mode / rel
+    _write(payload, "replacement")
+    _write(repo_root / rel, "original")
+
+    with pytest.raises(CfgError, match="reserved"):
+        build_repo_apply_plan(
+            cfg_root=cfg_root,
+            repo_root=repo_root,
+            repo_id="owner/repo",
+            enabled_owner_ids=["repo/feature/demo"],
+        )
+    assert (repo_root / rel).read_text() == "original"
+
+
+def test_mirror_plan_snapshots_bytes_and_mode(tmp_path: Path) -> None:
+    cfg_root, repo_root = tmp_path / "cfg", tmp_path / "repo"
+    repo_root.mkdir()
+    owner = _feature_root(cfg_root, "demo")
+    _write(owner / "feature.toml", _owner_manifest("repo/feature/demo"))
+    source = owner / "mirror" / "script"
+    _write(source, "planned bytes\n")
+    source.chmod(0o755)
+    plan = build_repo_apply_plan(
+        cfg_root=cfg_root, repo_root=repo_root, repo_id="owner/repo", enabled_owner_ids=["repo/feature/demo"]
+    )
+    source.write_text("changed bytes\n")
+    source.chmod(0o600)
+    apply_repo_plan(plan)
+    assert (repo_root / "script").read_text() == "planned bytes\n"
+    assert (repo_root / "script").stat().st_mode & 0o777 == 0o755
+    assert apply_repo_plan(plan) == 0
+    prune = build_repo_apply_plan(
+        cfg_root=cfg_root,
+        repo_root=repo_root,
+        repo_id="owner/repo",
+        enabled_owner_ids=[],
+        previous_state=read_repo_state(repo_root),
+    )
+    assert apply_repo_plan(prune) == 1
+
+
+@pytest.mark.parametrize("change_after_planning", [False, True])
+def test_prune_preserves_repointed_overlay(tmp_path: Path, change_after_planning: bool) -> None:
+    cfg_root, repo_root = tmp_path / "cfg", tmp_path / "repo"
+    repo_root.mkdir()
+    owner = _feature_root(cfg_root, "demo")
+    _write(owner / "feature.toml", _owner_manifest("repo/feature/demo"))
+    _write(owner / "overlay" / "link", "original")
+    apply_repo_plan(
+        build_repo_apply_plan(
+            cfg_root=cfg_root,
+            repo_root=repo_root,
+            repo_id="owner/repo",
+            enabled_owner_ids=["repo/feature/demo"],
+        )
+    )
+    state = read_repo_state(repo_root)
+    other = _feature_root(cfg_root, "other") / "overlay" / "link"
+    _write(other, "replacement")
+    if change_after_planning:
+        prune = build_repo_apply_plan(
+            cfg_root=cfg_root,
+            repo_root=repo_root,
+            repo_id="owner/repo",
+            enabled_owner_ids=[],
+            previous_state=state,
+        )
+    (repo_root / "link").unlink()
+    (repo_root / "link").symlink_to(other)
+    if change_after_planning:
+        with pytest.raises(CfgError, match="stale overlay"):
+            apply_repo_plan(prune)
+    else:
+        with pytest.raises(CfgError, match="stale overlay"):
+            build_repo_apply_plan(
+                cfg_root=cfg_root,
+                repo_root=repo_root,
+                repo_id="owner/repo",
+                enabled_owner_ids=[],
+                previous_state=state,
+            )
+    assert (repo_root / "link").resolve() == other
+
+
+@pytest.mark.parametrize("mode", ["mirror", "generated"])
+def test_failed_atomic_write_preserves_existing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    cfg_root, repo_root = tmp_path / "cfg", tmp_path / "repo"
+    repo_root.mkdir()
+    owner = _feature_root(cfg_root, "demo")
+    _write(
+        owner / "feature.toml",
+        _owner_manifest("repo/feature/demo", generated=["x"] if mode == "generated" else []),
+    )
+    source = owner / "mirror/x" if mode == "mirror" else owner / "render/templates/x.j2"
+    _write(source, "new contents")
+    destination = repo_root / "x"
+    _write(destination, "original contents")
+    plan = build_repo_apply_plan(
+        cfg_root=cfg_root, repo_root=repo_root, repo_id="owner/repo", enabled_owner_ids=["repo/feature/demo"]
+    )
+    original_replace = Path.replace
+
+    def fail_destination_replace(path: Path, target: Path) -> Path:
+        if target == destination:
+            raise OSError("injected publish failure")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", fail_destination_replace)
+    with pytest.raises(OSError, match="injected publish failure"):
+        apply_repo_plan(plan)
+    assert destination.read_text() == "original contents"
+    assert list(repo_root.iterdir()) == [destination]

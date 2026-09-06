@@ -22,6 +22,7 @@ from cfg.core.fs import iter_files
 from cfg.core.ids import OwnerId
 from cfg.core.owners import OwnerManifest, load_owner_manifest_index, owner_id_to_dir
 from cfg.core.special_files import logical_rel_from_storage_rel
+from cfg.owners.providers import select_path_providers
 
 
 @dataclass(frozen=True)
@@ -61,7 +62,6 @@ class ResolvedOwnerFiles:
     """Result of resolving owner-provided files with conflict handling."""
 
     desired: dict[Path, OwnerFile]
-    all_known_rels: set[Path]
 
 
 def resolve_owner_files(
@@ -84,7 +84,7 @@ def resolve_owner_files(
         conflict_error_prefix: Prefix for error message on conflicts
 
     Returns:
-        ResolvedOwnerFiles with desired files and all known relpaths
+        ResolvedOwnerFiles with selected desired files
     """
     path_provider_overrides = dict(path_provider_overrides or {})
     if manifest_index is None:
@@ -98,41 +98,10 @@ def resolve_owner_files(
         for of in file_getter(cfg_root, owner_id):
             providers.setdefault(of.rel, []).append(of)
 
-    desired: dict[Path, OwnerFile] = {}
-    conflicts: list[str] = []
+    desired = select_path_providers(
+        providers,
+        path_provider_overrides=path_provider_overrides,
+        conflict_error_prefix=conflict_error_prefix,
+    )
 
-    for rel, tfs in sorted(providers.items(), key=lambda kv: str(kv[0])):
-        if len(tfs) == 1:
-            desired[rel] = tfs[0]
-            continue
-
-        override = path_provider_overrides.get(str(rel))
-        if override:
-            matches = [tf for tf in tfs if tf.owner == override]
-            if len(matches) == 1:
-                desired[rel] = matches[0]
-                continue
-            providers_list = ", ".join(sorted({tf.owner for tf in tfs}))
-            conflicts.append(f"{rel} (override={override!r} not among providers: {providers_list})")
-            continue
-
-        providers_list = ", ".join(sorted({tf.owner for tf in tfs}))
-        conflicts.append(f"{rel} (multiple providers: {providers_list})")
-
-    if conflicts:
-        msg = "\n".join(f"- {c}" for c in conflicts)
-        raise CfgError(
-            f"{conflict_error_prefix} detected between enabled owners:\n"
-            f"{msg}\n\n"
-            "Fix by:\n"
-            "- removing one of the conflicting owners, or\n"
-            "- adding an explicit path provider override in settings\n"
-        )
-
-    # Collect all known rels (for stale cleanup).
-    all_rels: set[Path] = set()
-    for owner_id in manifest_index:
-        for of in file_getter(cfg_root, owner_id):
-            all_rels.add(of.rel)
-
-    return ResolvedOwnerFiles(desired=desired, all_known_rels=all_rels)
+    return ResolvedOwnerFiles(desired=desired)

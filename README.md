@@ -74,6 +74,13 @@ if it still matches that evidence; user-modified replacements fail safely.
 `cfg validate` parses and resolves the complete personalization repository without
 writing to hosts, repositories, or the configuration root.
 
+## Managed-path safety
+
+Managed repo outputs cannot target `.git` components or the root `.cfg` directory.
+Mirror plans capture bytes and permissions before applying; later source edits do
+not change the plan. Stale overlays are removed only when their target still
+matches recorded ownership. Links without recorded ownership are left untouched.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
