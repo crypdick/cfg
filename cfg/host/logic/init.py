@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from cfg.core.cli_logic_utils import normalize_feature_name, parse_repo_kv
 from cfg.core.context import CfgContext
-from cfg.core.host_id import set_cfg_host
+from cfg.core.host_id import cfg_host_hint_file, find_cfg_host, set_cfg_host
 from cfg.core.models import HostSettings
 from cfg.core.scope import Scope
 from cfg.host.fs import safe_host_slug
@@ -44,6 +45,34 @@ def init_host(*, host: str, dry_run: bool, features: list[str], repos: list[str]
 
     hint = set_cfg_host(host)
     lines.append(f"wrote: {hint}")
+
+    return lines
+
+
+def drop_host(*, host: str, dry_run: bool = False) -> list[str]:
+    """Business logic for `cfg host drop` (returns lines to print).
+
+    Deletes a host's entire inventory directory (cfg.toml, deploy.py, overlay/, etc.).
+    Idempotent: dropping an already-absent host succeeds with a message.
+    """
+    host = safe_host_slug(host)
+    ctx = CfgContext.load()
+
+    host_dir = ctx.store.get_host_path(host).parent
+    if not host_dir.is_dir():
+        return [f"ok (not found): {host}"]
+
+    if dry_run:
+        return [f"would delete: {host_dir}"]
+
+    shutil.rmtree(host_dir)
+    ctx.store.reload()
+    lines = [f"deleted: {host_dir}"]
+
+    if find_cfg_host() == host:
+        hint = cfg_host_hint_file()
+        hint.unlink(missing_ok=True)
+        lines.append(f"cleared: {hint} (was current host)")
 
     return lines
 

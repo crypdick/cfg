@@ -18,7 +18,7 @@ from cfg.host.logic.features import (
     features_list,
     features_remove,
 )
-from cfg.host.logic.init import edit_host, init_host
+from cfg.host.logic.init import drop_host, edit_host, init_host
 from cfg.host.logic.managed import managed
 from cfg.host.logic.mirror import add_path, remove_path
 from cfg.host.logic.settings import settings
@@ -31,6 +31,7 @@ __all__ = [
     "apply",
     "current_host",
     "debug_inventory",
+    "drop_host",
     "edit_host",
     "features_add",
     "features_create",

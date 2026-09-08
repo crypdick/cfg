@@ -370,6 +370,90 @@ def test_host_init_dry_run_does_not_write(tmp_path: Path, monkeypatch: pytest.Mo
     assert not host_path.exists()
 
 
+def test_host_drop_not_found_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg_root = _setup_cfg_root(tmp_path, host_hint=None)
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    import main
+
+    runner = CliRunner()
+    res = runner.invoke(main.app, ["host", "drop", "ghost", "--yes"])
+    assert res.exit_code == 0, (res.output, res.exception)
+    assert "ok (not found)" in res.output
+
+
+def test_host_drop_dry_run_does_not_delete(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg_root = _setup_cfg_root(tmp_path, host_hint=None)
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    import main
+
+    runner = CliRunner()
+    res = runner.invoke(main.app, ["host", "init", "h1"])
+    assert res.exit_code == 0, (res.output, res.exception)
+
+    res2 = runner.invoke(main.app, ["host", "drop", "h1", "--dry-run"])
+    assert res2.exit_code == 0, (res2.output, res2.exception)
+    assert "would delete:" in res2.output
+    assert (cfg_root / "hosts" / "h1" / "cfg.toml").is_file()
+
+
+def test_host_drop_deletes_host_dir_and_clears_current_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg_root = _setup_cfg_root(tmp_path, host_hint=None)
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    import main
+
+    runner = CliRunner()
+    res = runner.invoke(main.app, ["host", "init", "h1"])
+    assert res.exit_code == 0, (res.output, res.exception)
+
+    res2 = runner.invoke(main.app, ["host", "current"])
+    assert "h1" in res2.output
+
+    host_dir = cfg_root / "hosts" / "h1"
+    assert host_dir.is_dir()
+
+    res3 = runner.invoke(main.app, ["host", "drop", "h1", "--yes"])
+    assert res3.exit_code == 0, (res3.output, res3.exception)
+    assert "deleted:" in res3.output
+    assert "cleared:" in res3.output
+    assert not host_dir.exists()
+
+    res4 = runner.invoke(main.app, ["host", "current"])
+    assert "(unset)" in res4.output
+
+
+def test_host_drop_prompts_for_confirmation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg_root = _setup_cfg_root(tmp_path, host_hint=None)
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    import main
+
+    runner = CliRunner()
+    res = runner.invoke(main.app, ["host", "init", "h1"])
+    assert res.exit_code == 0, (res.output, res.exception)
+
+    host_dir = cfg_root / "hosts" / "h1"
+
+    # Declining the prompt aborts without deleting.
+    res2 = runner.invoke(main.app, ["host", "drop", "h1"], input="n\n")
+    assert res2.exit_code != 0
+    assert host_dir.is_dir()
+
+    # Confirming the prompt deletes.
+    res3 = runner.invoke(main.app, ["host", "drop", "h1"], input="y\n")
+    assert res3.exit_code == 0, (res3.output, res3.exception)
+    assert "deleted:" in res3.output
+    assert not host_dir.exists()
+
+
 def test_host_init_uses_implicit_owner_without_derived_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

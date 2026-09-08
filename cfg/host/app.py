@@ -161,6 +161,18 @@ def init_host(
     echo_lines(lines)
 
 
+@app.command("drop")
+def drop_host(
+    host: str,
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print actions but do not delete files."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+) -> None:
+    """Delete a host's inventory directory (cfg.toml, deploy.py, overlay/, etc.)."""
+    if not dry_run and not yes and not typer.confirm(f"Delete host '{host}' and all its inventory files?"):
+        raise typer.Abort
+    echo_lines(logic.drop_host(host=host, dry_run=dry_run))
+
+
 @app.command("edit")
 def edit_host(host: str) -> None:
     """Print the inventory path for a host."""
