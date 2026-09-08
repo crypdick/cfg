@@ -12,7 +12,7 @@ def test_version_command() -> None:
     runner = CliRunner()
     res = runner.invoke(main.app, ["version"])
     assert res.exit_code == 0
-    assert "cfg 0.1.0" in res.output
+    assert "cfg 0.1.1" in res.output
 
 
 def test_main_wraps_cfgerror_into_exit(monkeypatch: pytest.MonkeyPatch) -> None:

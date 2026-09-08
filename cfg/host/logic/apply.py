@@ -5,7 +5,9 @@ from cfg.host.cli_common import builtin_workflow_path, host_ctx, require_registe
 from cfg.host.runner import run_pyinfra
 
 
-def apply(*, host: str | None, dry_run: bool, quiet: bool = False, force: bool = False) -> list[str]:
+def apply(
+    *, host: str | None, dry_run: bool, yes: bool = False, quiet: bool = False, force: bool = False
+) -> list[str]:
     """Business logic for `cfg host apply` (returns lines to print)."""
     # Pre-flight check: ensure GNU stat is configured for pyinfra
     # Print these immediately before any pyinfra output
@@ -28,6 +30,7 @@ def apply(*, host: str | None, dry_run: bool, quiet: bool = False, force: bool =
         current_host_for_local=host,
         extra_env={"CFG_FORCE_LINKS": "1"} if force else None,
         dry_run=dry_run,
+        auto_approve=yes,
         quiet=quiet,
     )
     return ["home applied."]

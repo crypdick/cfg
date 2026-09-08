@@ -44,6 +44,7 @@ def run_pyinfra_cli(
     limit: list[str] | None = None,
     extra_env: dict[str, str] | None = None,
     dry_run: bool = False,
+    auto_approve: bool = False,
     quiet: bool = False,
 ) -> None:
     """
@@ -61,7 +62,7 @@ def run_pyinfra_cli(
     env.update(extra_env or {})
 
     cmd = [sys.executable, "-c", PYINFRA_BOOTSTRAP]
-    if not sys.stdin.isatty():
+    if auto_approve or not sys.stdin.isatty():
         # Non-interactive (eg CI): don't prompt for confirmation.
         cmd.append("--yes")
     if dry_run:
@@ -94,6 +95,7 @@ def run_pyinfra(
     limit: list[str] | None = None,
     extra_env: dict[str, str] | None = None,
     dry_run: bool = False,
+    auto_approve: bool = False,
     quiet: bool = False,
 ) -> None:
     """Run pyinfra through the supported subprocess CLI path."""
@@ -104,5 +106,6 @@ def run_pyinfra(
         limit=limit,
         extra_env=extra_env,
         dry_run=dry_run,
+        auto_approve=auto_approve,
         quiet=quiet,
     )

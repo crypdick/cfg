@@ -75,6 +75,26 @@ def test_run_pyinfra_cli_dry_run_adds_dry_flag(monkeypatch: pytest.MonkeyPatch, 
     assert "--dry" in calls[-1]["cmd"]
 
 
+def test_run_pyinfra_cli_auto_approve_adds_yes_in_a_tty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class _P:
+        returncode = 0
+
+    calls: list[list[str]] = []
+    monkeypatch.setattr(ex.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(ex.subprocess, "run", lambda cmd, **_kw: calls.append(cmd) or _P())
+
+    ex.run_pyinfra_cli(
+        cwd=tmp_path,
+        inventory_path=tmp_path / "inventory.py",
+        operations=["deploy.py"],
+        auto_approve=True,
+    )
+
+    assert "--yes" in calls[-1]
+
+
 def test_run_pyinfra_cli_raises_on_nonzero_exit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(ex.sys.stdin, "isatty", lambda: True)
 
@@ -114,5 +134,6 @@ def test_run_pyinfra_delegates_to_cli(monkeypatch: pytest.MonkeyPatch, tmp_path:
         "limit": ["all"],
         "extra_env": {"X": "1"},
         "dry_run": True,
+        "auto_approve": False,
         "quiet": True,
     }

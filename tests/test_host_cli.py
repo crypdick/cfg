@@ -444,6 +444,25 @@ def test_host_apply_dry_run_passes_flag(tmp_path: Path, monkeypatch: pytest.Monk
     assert called.get("dry_run") is True
 
 
+def test_host_apply_yes_skips_pyinfra_approval(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg_root = _setup_cfg_root(tmp_path, host_hint="h1")
+    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    import cfg.host.logic.apply as host_apply_logic
+    import main
+
+    called: dict[str, Any] = {}
+    monkeypatch.setattr(host_apply_logic, "run_pyinfra", lambda **kw: called.update(kw))
+
+    runner = CliRunner()
+    assert runner.invoke(main.app, ["host", "init", "h1"]).exit_code == 0
+    result = runner.invoke(main.app, ["host", "apply", "h1", "-y"])
+
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert called["auto_approve"] is True
+
+
 def test_host_upgrade_runs_separate_package_workflow(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

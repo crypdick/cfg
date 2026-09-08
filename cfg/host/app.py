@@ -35,11 +35,12 @@ def settings(host: str | None = typer.Argument(None)) -> None:
 def apply(
     host: str | None = typer.Argument(None),
     dry_run: bool = typer.Option(False, "--dry-run", help="Plan mode: do not execute operations."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the pyinfra approval prompt."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress verbose pyinfra output."),
     force: bool = typer.Option(False, "--force", help="Overwrite existing non-link files with symlinks."),
 ) -> None:
     """Apply host configuration to the current machine (home scope)."""
-    echo_lines(logic.apply(host=host, dry_run=dry_run, quiet=quiet, force=force))
+    echo_lines(logic.apply(host=host, dry_run=dry_run, yes=yes, quiet=quiet, force=force))
 
 
 @app.command()

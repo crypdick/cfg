@@ -54,6 +54,7 @@ cfg host current
 cfg host settings
 cfg host managed
 cfg host apply --dry-run
+cfg host apply -y
 cfg host upgrade --dry-run
 
 cfg repo settings

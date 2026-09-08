@@ -93,6 +93,7 @@ def _run_with_inventory(
     current_host_for_local: str | None,
     extra_env: dict[str, str] | None = None,
     dry_run: bool = False,
+    auto_approve: bool = False,
     quiet: bool = False,
 ) -> None:
     """Resolve the inventory, run pyinfra with `CFG_ROOT`/`CFG_HOST_FOR_LOCAL` set, and clean up."""
@@ -109,6 +110,7 @@ def _run_with_inventory(
             limit=limit,
             extra_env=merged_env,
             dry_run=dry_run,
+            auto_approve=auto_approve,
             quiet=quiet,
         )
     finally:
@@ -125,6 +127,7 @@ def run_pyinfra(
     current_host_for_local: str | None,
     extra_env: dict[str, str] | None = None,
     dry_run: bool = False,
+    auto_approve: bool = False,
     quiet: bool = False,
 ) -> None:
     _run_with_inventory(
@@ -135,6 +138,7 @@ def run_pyinfra(
         current_host_for_local=current_host_for_local,
         extra_env=extra_env,
         dry_run=dry_run,
+        auto_approve=auto_approve,
         quiet=quiet,
     )
 
