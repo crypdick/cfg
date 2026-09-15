@@ -67,6 +67,8 @@ Host operations use pyinfra. Repo operations build and execute a deterministic l
 filesystem plan. Private `deploy.py` files are trusted Python extensions and run with
 the user's privileges. `cfg host apply` applies managed home files and feature deploys;
 `cfg host upgrade` separately refreshes package metadata and upgrades installed packages.
+Interactive host applies validate sudo credentials before making changes, so native sudo
+can reprompt after a mistyped password. Noninteractive applies keep existing askpass behavior.
 
 Repo apply records minimal ownership evidence in `.cfg/state.json`; host apply records
 the same evidence in `$XDG_CONFIG_HOME/cfg/state.json`. When configuration stops managing

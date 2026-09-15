@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
 from typer.testing import CliRunner
 
 from cfg.core.state import read_host_state
@@ -9,8 +10,6 @@ from cfg.core.state import read_host_state
 if TYPE_CHECKING:
     from pathlib import Path
     from typing import Any
-
-    import pytest
 
 
 def _write(path: Path, content: str) -> None:
@@ -62,6 +61,65 @@ def test_host_apply_dry_run_passes_flag(tmp_path: Path, monkeypatch: pytest.Monk
 
     assert result.exit_code == 0, (result.output, result.exception)
     assert called["dry_run"] is True
+
+
+def test_interactive_host_apply_refreshes_sudo_before_pyinfra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _setup_host(tmp_path, monkeypatch)
+
+    import subprocess
+    import sys
+
+    import cfg.host.logic.apply as host_apply_logic
+
+    sudo_calls: list[list[str]] = []
+    runner_called = False
+
+    class _Result:
+        returncode = 0
+
+    def fake_subprocess_run(command: list[str], **_kwargs: Any) -> _Result:
+        sudo_calls.append(command)
+        return _Result()
+
+    def fake_pyinfra(**_kwargs: Any) -> None:
+        nonlocal runner_called
+        runner_called = True
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(host_apply_logic.shutil, "which", lambda _command: "/usr/bin/sudo")
+    monkeypatch.setattr(subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(host_apply_logic, "run_pyinfra", fake_pyinfra)
+    result = host_apply_logic.apply(host="h1", dry_run=False)
+
+    assert result[-1] == "home applied."
+    assert sudo_calls == [["sudo", "-v"]]
+    assert runner_called
+
+
+def test_failed_sudo_refresh_aborts_before_pyinfra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _setup_host(tmp_path, monkeypatch)
+
+    import subprocess
+    import sys
+
+    import cfg.host.logic.apply as host_apply_logic
+    from cfg.core.errors import CfgError
+
+    class _Result:
+        returncode = 1
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(host_apply_logic.shutil, "which", lambda _command: "/usr/bin/sudo")
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: _Result())
+    monkeypatch.setattr(
+        host_apply_logic,
+        "run_pyinfra",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("pyinfra should not run")),
+    )
+    with pytest.raises(CfgError, match="sudo authentication failed"):
+        host_apply_logic.apply(host="h1", dry_run=False)
 
 
 def test_host_apply_records_state_only_after_successful_deploy(

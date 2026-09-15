@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
+from cfg.core.errors import CfgError
 from cfg.core.owners import resolve_host_owner_ids_for_host
 from cfg.core.state import read_host_state
 from cfg.core.system_checks import ensure_gnu_stat_for_pyinfra
@@ -14,6 +18,18 @@ from cfg.host.plan import (
     format_host_cleanup,
 )
 from cfg.host.runner import run_pyinfra
+
+
+def _refresh_interactive_sudo() -> None:
+    """Prime native sudo timestamp so pyinfra does not reuse bad askpass data."""
+    if not sys.stdin.isatty() or shutil.which("sudo") is None:
+        return
+    try:
+        result = subprocess.run(["sudo", "-v"], check=False)
+    except OSError as error:
+        raise CfgError(f"Could not run sudo authentication preflight: {error}") from error
+    if result.returncode != 0:
+        raise CfgError("sudo authentication failed; host apply made no changes")
 
 
 def apply(
@@ -56,6 +72,7 @@ def apply(
 
     deploy = builtin_workflow_path("apply_home")
     if not dry_run:
+        _refresh_interactive_sudo()
         apply_host_cleanup(plan)
     run_pyinfra(
         cfg_root=ctx.root,
