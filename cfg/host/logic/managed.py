@@ -26,6 +26,7 @@ def managed(*, host: str | None) -> list[str]:
         cfg_root=ctx.root,
         enabled_owner_ids=owner_ids,
         manifest_index=snapshot.manifest_index,
+        host_vars=settings.vars,
     )
 
     return format_managed_sections(
@@ -35,4 +36,5 @@ def managed(*, host: str | None) -> list[str]:
         mirrored={
             rel: file for rel, file in linked_resolved.desired.items() if file.owner == HOST_HOME_PROVIDER
         },
+        generated=linked_resolved.generated,
     )

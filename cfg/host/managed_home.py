@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from cfg.core.errors import CfgError
 from cfg.core.ids import HostName, OwnerId
@@ -20,12 +21,13 @@ from cfg.core.owners import OwnerManifest, load_owner_manifest_index
 from cfg.host.fs import HOST_HOME_PROVIDER, host_specific_home_files
 from cfg.owners.fs import OwnerFile, owner_overlay_files
 from cfg.owners.providers import select_path_providers
+from cfg.render.generated import GeneratedTarget, resolve_generated_targets
 
 
 @dataclass(frozen=True)
 class HomePlan:
     desired: dict[Path, OwnerFile]  # rel -> provider file
-    all_known_rels: set[Path]
+    generated: dict[Path, GeneratedTarget]
 
 
 def resolve_host_home_plan(
@@ -34,6 +36,7 @@ def resolve_host_home_plan(
     host: HostName,
     enabled_owner_ids: Sequence[OwnerId],
     manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
+    host_vars: Mapping[str, Any] | None = None,
 ) -> HomePlan:
     if manifest_index is None:
         manifest_index = load_owner_manifest_index(cfg_root)
@@ -61,9 +64,18 @@ def resolve_host_home_plan(
         path_provider_overrides={str(file.rel): HOST_HOME_PROVIDER for file in host_files},
         conflict_error_prefix="Home owner conflict",
     )
-    all_rels = {file.rel for files in payloads.values() for file in files}
-    all_rels.update(file.rel for file in host_files)
-    return HomePlan(desired=desired, all_known_rels=all_rels)
+    generated = resolve_generated_targets(
+        cfg_root=cfg_root,
+        enabled_owner_ids=enabled_owner_ids,
+        manifest_index=manifest_index,
+        conflict_error_prefix="Host generated artifact conflict",
+        host_vars=host_vars,
+    ).desired
+    overlap = sorted(set(desired) & set(generated), key=lambda path: path.as_posix())
+    if overlap:
+        details = "\n".join(f"- {rel}" for rel in overlap)
+        raise CfgError(f"Host output conflict detected:\n{details}")
+    return HomePlan(desired=desired, generated=generated)
 
 
 def managed_home_roots(cfg_root: Path) -> list[Path]:

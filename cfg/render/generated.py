@@ -67,8 +67,20 @@ def _generated_from_manifest(
     *,
     owner_id: OwnerId,
     manifest: OwnerManifest,
+    host_vars: Mapping[str, Any] | None,
 ) -> list[GeneratedTarget]:
-    return [GeneratedTarget(owner=owner_id, rel=Path(str(path))) for path in manifest.generated]
+    conditions = dict(manifest.generated_when)
+    out: list[GeneratedTarget] = []
+    for path in manifest.generated:
+        variable = conditions.get(path)
+        if variable is not None:
+            value = (host_vars or {}).get(variable, True)
+            if not isinstance(value, bool):
+                raise CfgError(f"Host variable {variable!r} must be a boolean")
+            if not value:
+                continue
+        out.append(GeneratedTarget(owner=owner_id, rel=Path(str(path))))
+    return out
 
 
 def resolve_generated_targets(
@@ -78,6 +90,7 @@ def resolve_generated_targets(
     manifest_index: Mapping[OwnerId, OwnerManifest] | None = None,
     path_provider_overrides: Mapping[str, str] | None = None,
     conflict_error_prefix: str = "Generated artifact conflict",
+    host_vars: Mapping[str, Any] | None = None,
 ) -> ResolvedGeneratedTargets:
     """
     Resolve generated outputs declared by enabled owners, with conflict detection.
@@ -95,7 +108,11 @@ def resolve_generated_targets(
         manifest = manifest_index.get(owner_id)
         if manifest is None:
             raise CfgError(f"Unknown owner (not in manifest index): {owner_id}")
-        for gt in _generated_from_manifest(owner_id=owner_id, manifest=manifest):
+        for gt in _generated_from_manifest(
+            owner_id=owner_id,
+            manifest=manifest,
+            host_vars=host_vars,
+        ):
             providers.setdefault(gt.rel, []).append(gt)
 
     desired = select_path_providers(

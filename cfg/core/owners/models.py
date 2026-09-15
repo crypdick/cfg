@@ -31,6 +31,7 @@ class FeatureManifest(BaseModel):
     conflicts: list[FeatureName] = Field(default_factory=list)
     host_requires: list[FeatureName] = Field(default_factory=list)
     generated: list[Path] = Field(default_factory=list)
+    generated_when: dict[Path, str] = Field(default_factory=dict)
 
     @field_validator("schema_version")
     @classmethod
@@ -51,6 +52,18 @@ class FeatureManifest(BaseModel):
     def _generated_paths_safe_and_deduped(cls, values: list[str]) -> list[Path]:
         rels = [safe_relpath(str(value).strip()) for value in values if str(value).strip()]
         return list(dict.fromkeys(rels))
+
+    @field_validator("generated_when")
+    @classmethod
+    def _generated_conditions_safe(cls, values: dict[str, str]) -> dict[Path, str]:
+        out: dict[Path, str] = {}
+        for raw_path, raw_var in values.items():
+            rel = safe_relpath(str(raw_path).strip())
+            var = str(raw_var).strip()
+            if not var:
+                raise ValueError(f"Generated condition variable must be non-empty: {raw_path}")
+            out[rel] = var
+        return out
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +131,7 @@ class OwnerManifest:
     requires: tuple[OwnerId, ...] = ()
     conflicts: tuple[OwnerId, ...] = ()
     generated: tuple[Path, ...] = ()
+    generated_when: tuple[tuple[Path, str], ...] = ()
 
     @property
     def owner_id(self) -> OwnerId:

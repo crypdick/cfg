@@ -241,3 +241,32 @@ class RepoStateManifest(BaseModel):
             rel = safe_managed_relpath(raw)
             out[rel.as_posix()] = state
         return out
+
+
+class HostStateManifest(BaseModel):
+    """Last successful host apply, stored in ``$XDG_CONFIG_HOME/cfg/state.json``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = 1
+    host: HostName | None = None
+    managed: dict[str, ManagedPathState] = Field(default_factory=dict)
+
+    @field_validator("host")
+    @classmethod
+    def _host_valid(cls, value: str | None) -> HostName | None:
+        return None if value is None else parse_host_name(value)
+
+    @field_validator("managed")
+    @classmethod
+    def _managed_paths_safe(
+        cls,
+        values: dict[str, ManagedPathState],
+    ) -> dict[str, ManagedPathState]:
+        out: dict[str, ManagedPathState] = {}
+        for raw, state in values.items():
+            rel = safe_relpath(raw)
+            if rel == Path(".config/cfg/state.json"):
+                raise ValueError("Host state cannot manage itself")
+            out[rel.as_posix()] = state
+        return out

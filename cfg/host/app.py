@@ -55,7 +55,7 @@ def upgrade(
 
 @app.command("managed")
 def managed(host: str | None = typer.Argument(None)) -> None:
-    """Show linked and mirrored files managed for a host."""
+    """Show linked, mirrored, and generated files managed for a host."""
     echo_lines(logic.managed(host=host))
 
 

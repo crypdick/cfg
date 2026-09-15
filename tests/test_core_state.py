@@ -7,8 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 from cfg.core.errors import CfgError
-from cfg.core.models import ManagedPathState, RepoStateManifest
-from cfg.core.state import read_repo_state, write_repo_state
+from cfg.core.models import HostStateManifest, ManagedPathState, RepoStateManifest
+from cfg.core.state import read_host_state, read_repo_state, write_host_state, write_repo_state
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -64,3 +64,24 @@ def test_repo_state_rejects_unsafe_managed_evidence(path: str, digest: str) -> N
                 )
             }
         )
+
+
+def test_host_state_read_write_uses_xdg_config_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    assert read_host_state() == HostStateManifest()
+
+    state = HostStateManifest(
+        host="workstation",
+        managed={
+            ".config/tool/config": ManagedPathState(
+                kind="overlay",
+                owner="host/feature/tool",
+                digest="b" * 64,
+                source="/cfg/features/host/tool/overlay/.config/tool/config",
+            )
+        },
+    )
+    path = write_host_state(state)
+
+    assert path == tmp_path / "xdg/cfg/state.json"
+    assert read_host_state() == state

@@ -184,8 +184,9 @@ Three modes remain:
 
 The planner rejects multiple providers for the same destination unless the target config
 selects one explicitly. Repo apply persists the last-applied owner, mode, and content
-digest in the target's `.cfg/state.json`. Cleanup removes stale paths only while that
-evidence still matches; modified paths produce a conflict instead.
+digest in the target's `.cfg/state.json`; host apply stores equivalent post-success state
+in `$XDG_CONFIG_HOME/cfg/state.json`. Cleanup removes stale paths only while that evidence
+still matches; modified paths produce a conflict instead.
 
 Expanded per-host and per-repo manifests are not source data and have been removed. If
 cleanup needs a last-applied inventory, cfg stores minimal local state rather than a

@@ -27,29 +27,8 @@ from cfg.core.errors import CfgError
 from cfg.core.ids import parse_host_name
 from cfg.deploys.host_data import CFG_HOST_NAME, cfg_root_from_host_data, owner_ids_from_host_data
 from cfg.host.deploys.feature_deploys import deploy_features
-from cfg.host.managed_home import HomePlan, managed_home_roots, resolve_host_home_plan
+from cfg.host.managed_home import HomePlan, resolve_host_home_plan
 from cfg.owners.fs import OwnerFile
-
-
-def _cleanup_stale_managed_symlinks(*, home: str, plan: HomePlan, roots: list[Path]) -> None:
-    """
-    Remove symlinks under $HOME that point into cfg-managed roots but are absent from the plan.
-    """
-    for rel in sorted(plan.all_known_rels):
-        if rel in plan.desired:
-            continue
-        dest = f"{home}/{rel.as_posix()}"
-        info = host.get_fact(Link, path=dest)
-        if not info:
-            continue
-        link_target = str(info.get("link_target") or "")
-        if not any(link_target.startswith(str(r)) for r in roots):
-            continue
-        files.link(
-            name=f"Remove stale managed symlink: ~/{rel.as_posix()}",
-            path=dest,
-            present=False,
-        )
 
 
 def _ensure_parent_dirs_for_desired(*, home: str, desired: dict[Path, OwnerFile]) -> None:
@@ -70,7 +49,6 @@ def _ensure_parent_dirs_for_desired(*, home: str, desired: dict[Path, OwnerFile]
         parent_dest = f"{home}/{parent.as_posix()}"
         info = host.get_fact(Link, path=parent_dest)
         if info:
-            # If a directory path is actually a symlink, and it's broken, remove it so we can create a real dir.
             link_target = str(info.get("link_target") or "")
             if link_target and not Path(link_target).exists():
                 files.link(
@@ -78,7 +56,6 @@ def _ensure_parent_dirs_for_desired(*, home: str, desired: dict[Path, OwnerFile]
                     path=parent_dest,
                     present=False,
                 )
-
         files.directory(
             name=f"Ensure directory exists: ~/{parent.as_posix()}",
             path=parent_dest,
@@ -120,8 +97,6 @@ def deploy_apply_home() -> None:
         raise CfgError(f"Invalid host identity: {e}") from e
 
     plan: HomePlan = resolve_host_home_plan(cfg_root=cfg_root, host=host_name, enabled_owner_ids=owner_ids)
-    roots = managed_home_roots(cfg_root)
-
     # Apply home files BEFORE running feature deploys.
     #
     # Why first: some feature deploys invoke binaries that auto-create config
@@ -133,7 +108,6 @@ def deploy_apply_home() -> None:
     # With symlinks first, the path resolves to the cfg-managed file before
     # any deploy touches it.
     if host.name == "@local":
-        _cleanup_stale_managed_symlinks(home=home, plan=plan, roots=roots)
         _ensure_parent_dirs_for_desired(home=home, desired=plan.desired)
         _apply_symlinks(home=home, desired=plan.desired)
     else:

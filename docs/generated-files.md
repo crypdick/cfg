@@ -1,8 +1,10 @@
 # Generated files (templates + fragments)
 
-This document defines how `cfg` renders generated files declared by feature metadata.
+This document defines how `cfg` handles generated files declared by feature metadata.
 
-Generated files are **not copied** from `mirror/` or symlinked from `overlay/`: they are rendered from a **Jinja2 template** and (optionally) composed from **raw text fragments** contributed by enabled owners.
+Repo generated files are rendered from a **Jinja2 template** and optionally composed
+from raw text fragments. Host generated files are created by trusted `deploy.py` code,
+which supports platform-specific tools and formats that pyinfra already handles well.
 
 ## Concepts
 
@@ -26,6 +28,12 @@ generated = [
 
 Notes:
 - Conflicts (two enabled owners declaring the same `rel`) are an error unless a **path provider override** selects exactly one provider.
+- A host feature declaring generated paths must define `deploy.py`. After successful
+  deployment, every declared path must be a regular file. cfg records its actual digest
+  in `$XDG_CONFIG_HOME/cfg/state.json` for safe cleanup on later applies.
+- Host features may map a generated path to a boolean host variable with
+  `generated_when = { ".tool/settings.json" = "manage_tool_settings" }`. Missing
+  variables default to enabled; explicit `false` leaves that path unmanaged.
 
 ## Where templates live
 
@@ -87,6 +95,8 @@ Each fragment dict includes:
 
 - **Repo writes**: rendered to strings while building the direct repo apply plan,
   then written atomically by the repo executor.
+- **Host writes**: performed by the provider's `deploy.py`, then verified and recorded
+  only after the complete pyinfra deployment succeeds.
 - **Drift checks**: render every configured output once and compare it with the
   working tree or staged index, including missing files and staged deletions.
 

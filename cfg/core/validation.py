@@ -65,6 +65,8 @@ def validate_configuration(cfg_root: Path) -> ValidationReport:
     )
 
     for owner_id, manifest in manifest_index.items():
+        if owner_scope(owner_id) is Scope.HOST:
+            continue
         for rel in manifest.generated:
             template_path = (
                 owner_id_to_dir(cfg_root, owner_id) / "render" / "templates" / f"{rel.as_posix()}.j2"
@@ -105,6 +107,7 @@ def validate_configuration(cfg_root: Path) -> ValidationReport:
             host=host_loaded.settings.name,
             enabled_owner_ids=owner_ids,
             manifest_index=manifest_index,
+            host_vars=host_loaded.settings.vars,
         )
 
     return ValidationReport(

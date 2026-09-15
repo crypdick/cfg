@@ -68,9 +68,11 @@ filesystem plan. Private `deploy.py` files are trusted Python extensions and run
 the user's privileges. `cfg host apply` applies managed home files and feature deploys;
 `cfg host upgrade` separately refreshes package metadata and upgrades installed packages.
 
-Repo apply records minimal ownership evidence in `.cfg/state.json`. When configuration
-stops managing a mirror, generated file, or overlay, cfg removes the stale output only
-if it still matches that evidence; user-modified replacements fail safely.
+Repo apply records minimal ownership evidence in `.cfg/state.json`; host apply records
+the same evidence in `$XDG_CONFIG_HOME/cfg/state.json`. When configuration stops managing
+a mirror, generated file, or overlay, cfg removes the stale output only if it still
+matches that evidence; user-modified replacements fail safely. Host state is written
+only after pyinfra succeeds and cfg verifies actual declared outputs.
 
 `cfg validate` parses and resolves the complete personalization repository without
 writing to hosts, repositories, or the configuration root.
@@ -81,6 +83,11 @@ Managed repo outputs cannot target `.git` components or the root `.cfg` director
 Mirror plans capture bytes and permissions before applying; later source edits do
 not change the plan. Stale overlays are removed only when their target still
 matches recorded ownership. Links without recorded ownership are left untouched.
+
+Host feature `generated` paths name files created by that feature's `deploy.py`.
+Successful host apply verifies those files and records their digests. This makes
+platform-selected or tool-generated host configuration part of normal ownership
+cleanup without forcing its bytes into an overlay.
 
 ## Documentation
 

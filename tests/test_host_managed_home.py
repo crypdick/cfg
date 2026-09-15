@@ -82,3 +82,53 @@ generated = []
     plan = resolve_host_home_plan(cfg_root=cfg_root, host="h1", enabled_owner_ids=["host/feature/a"])
     assert plan.desired[Path("x.txt")].owner == "@host"
     assert plan.desired[Path("x.txt")].src.read_text(encoding="utf-8") == "host\n"
+
+
+def test_resolve_host_home_plan_includes_declared_generated_outputs(tmp_path: Path) -> None:
+    feature = tmp_path / "features/host/a"
+    _write(
+        feature / "feature.toml",
+        'schema_version = 1\nrequires = []\nconflicts = []\ngenerated = [".tool/settings.json"]\n',
+    )
+    _write(feature / "deploy.py", "def main():\n    pass\n")
+
+    plan = resolve_host_home_plan(
+        cfg_root=tmp_path,
+        host="h1",
+        enabled_owner_ids=["host/feature/a"],
+    )
+
+    assert plan.generated[Path(".tool/settings.json")].owner == "host/feature/a"
+
+
+def test_host_generated_condition_can_leave_output_unmanaged(tmp_path: Path) -> None:
+    feature = tmp_path / "features/host/a"
+    _write(
+        feature / "feature.toml",
+        """
+schema_version = 1
+requires = []
+conflicts = []
+generated = [".tool/settings.json"]
+
+[generated_when]
+".tool/settings.json" = "manage_tool_settings"
+""".lstrip(),
+    )
+    _write(feature / "deploy.py", "def main():\n    pass\n")
+
+    enabled = resolve_host_home_plan(
+        cfg_root=tmp_path,
+        host="h1",
+        enabled_owner_ids=["host/feature/a"],
+        host_vars={},
+    )
+    disabled = resolve_host_home_plan(
+        cfg_root=tmp_path,
+        host="h1",
+        enabled_owner_ids=["host/feature/a"],
+        host_vars={"manage_tool_settings": False},
+    )
+
+    assert Path(".tool/settings.json") in enabled.generated
+    assert disabled.generated == {}

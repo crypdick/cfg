@@ -34,11 +34,15 @@ def _load_feature_manifest(path: Path, *, owner_id: OwnerId) -> OwnerManifest:
     owner = parse_owner_ref(owner_id)
     if not isinstance(owner, FeatureOwner):
         raise CfgError(f"Invalid feature owner id: {owner_id}")
-    if owner.scope is Scope.HOST:
-        if feature.host_requires:
-            raise CfgError(f"Host feature cannot declare host_requires: {path}")
-        if feature.generated:
-            raise CfgError(f"Host feature cannot declare generated outputs: {path}")
+    if owner.scope is Scope.HOST and feature.host_requires:
+        raise CfgError(f"Host feature cannot declare host_requires: {path}")
+    if owner.scope is Scope.HOST and feature.generated and not path.with_name("deploy.py").is_file():
+        raise CfgError(f"Host feature with generated outputs must define deploy.py: {path}")
+    unknown_conditions = set(feature.generated_when) - set(feature.generated)
+    if unknown_conditions:
+        raise CfgError(f"generated_when path is not declared in generated: {path}")
+    if owner.scope is Scope.REPO and feature.generated_when:
+        raise CfgError(f"Repo feature cannot declare generated_when: {path}")
 
     requires = [FeatureOwner(scope=owner.scope, name=name).id for name in feature.requires]
     if owner.scope is Scope.REPO:
@@ -49,6 +53,7 @@ def _load_feature_manifest(path: Path, *, owner_id: OwnerId) -> OwnerManifest:
         requires=tuple(requires),
         conflicts=tuple(conflicts),
         generated=tuple(feature.generated),
+        generated_when=tuple(feature.generated_when.items()),
     )
 
 

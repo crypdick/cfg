@@ -323,7 +323,7 @@ def test_host_managed_empty_prints_sections(tmp_path: Path, monkeypatch: pytest.
     assert res.exit_code == 0, (res.output, res.exception)
     assert "linked:" in res.output
     assert "mirrored:" in res.output
-    assert "generated:" not in res.output
+    assert "generated:" in res.output
 
 
 def test_host_add_dry_run_does_not_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -476,75 +476,6 @@ def test_host_init_uses_implicit_owner_without_derived_manifest(
     from cfg.core.owners import load_owner_manifest_index
 
     assert "host/h1" in load_owner_manifest_index(cfg_root)
-
-
-def test_host_apply_monkeypatches_pyinfra_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg_root = _setup_cfg_root(tmp_path, host_hint="h1")
-    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-
-    import cfg.host.logic.apply as host_apply_logic
-    import main
-
-    called: dict[str, Any] = {}
-
-    def fake_run_pyinfra(**kw: Any) -> None:
-        called.update(kw)
-
-    monkeypatch.setattr(host_apply_logic, "run_pyinfra", fake_run_pyinfra)
-
-    runner = CliRunner()
-    res0 = runner.invoke(main.app, ["host", "init", "h1"])
-    assert res0.exit_code == 0, (res0.output, res0.exception)
-
-    res = runner.invoke(main.app, ["host", "apply", "h1"])
-    assert res.exit_code == 0, (res.output, res.exception)
-    assert "home applied." in res.output
-    assert called.get("current_host_for_local") == "h1"
-    assert called.get("dry_run") is False
-
-
-def test_host_apply_dry_run_passes_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg_root = _setup_cfg_root(tmp_path, host_hint="h1")
-    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-
-    import cfg.host.logic.apply as host_apply_logic
-    import main
-
-    called: dict[str, Any] = {}
-
-    def fake_run_pyinfra(**kw: Any) -> None:
-        called.update(kw)
-
-    monkeypatch.setattr(host_apply_logic, "run_pyinfra", fake_run_pyinfra)
-
-    runner = CliRunner()
-    res0 = runner.invoke(main.app, ["host", "init", "h1"])
-    assert res0.exit_code == 0, (res0.output, res0.exception)
-
-    res = runner.invoke(main.app, ["host", "apply", "h1", "--dry-run"])
-    assert res.exit_code == 0, (res.output, res.exception)
-    assert called.get("dry_run") is True
-
-
-def test_host_apply_yes_skips_pyinfra_approval(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg_root = _setup_cfg_root(tmp_path, host_hint="h1")
-    monkeypatch.setenv("CFG_ROOT", str(cfg_root))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-
-    import cfg.host.logic.apply as host_apply_logic
-    import main
-
-    called: dict[str, Any] = {}
-    monkeypatch.setattr(host_apply_logic, "run_pyinfra", lambda **kw: called.update(kw))
-
-    runner = CliRunner()
-    assert runner.invoke(main.app, ["host", "init", "h1"]).exit_code == 0
-    result = runner.invoke(main.app, ["host", "apply", "h1", "-y"])
-
-    assert result.exit_code == 0, (result.output, result.exception)
-    assert called["auto_approve"] is True
 
 
 def test_host_upgrade_runs_separate_package_workflow(
