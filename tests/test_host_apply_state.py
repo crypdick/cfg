@@ -20,6 +20,7 @@ def _write(path: Path, content: str) -> None:
 def _setup_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     import cfg.host.logic.apply as host_apply_logic
 
+    monkeypatch.setattr(host_apply_logic, "check_cfg_version", lambda **_kwargs: "cfg version current")
     monkeypatch.setattr(host_apply_logic, "sync_apply_root", lambda *_args, **_kwargs: "up-to-date")
     cfg_root = tmp_path / "cfg"
     _write(cfg_root / ".cfg-root", "")
@@ -87,6 +88,29 @@ def test_host_apply_stops_before_deploy_when_sync_fails(
     result = CliRunner().invoke(main.app, ["host", "apply", "h1"])
     assert isinstance(result.exception, CfgError)
     assert "dirty" in str(result.exception)
+
+
+def test_host_apply_stops_before_sync_when_cfg_version_is_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _setup_host(tmp_path, monkeypatch)
+
+    import cfg.host.logic.apply as host_apply_logic
+    import main
+    from cfg.core.errors import CfgError
+
+    def fail_version(**_kwargs: Any) -> str:
+        raise CfgError("cfg version is stale")
+
+    monkeypatch.setattr(host_apply_logic, "check_cfg_version", fail_version)
+    monkeypatch.setattr(
+        host_apply_logic,
+        "sync_apply_root",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("sync should not run")),
+    )
+    result = CliRunner().invoke(main.app, ["host", "apply", "h1"])
+    assert isinstance(result.exception, CfgError)
+    assert "stale" in str(result.exception)
 
 
 def test_interactive_host_apply_refreshes_sudo_before_pyinfra(

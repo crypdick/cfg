@@ -67,6 +67,10 @@ Host operations use pyinfra. Repo operations build and execute a deterministic l
 filesystem plan. Private `deploy.py` files are trusted Python extensions and run with
 the user's privileges. `cfg host apply` applies managed home files and feature deploys;
 `cfg host upgrade` separately refreshes package metadata and upgrades installed packages.
+Live host apply first compares the installed `cfg` version with `origin/main` in the Git
+checkout used to install cfg. If versions differ or the check cannot run, apply stops
+before changing the host. Update that checkout and run `uv tool upgrade cfg`, then retry.
+`--dry-run` uses the local `origin/main` snapshot without fetching it.
 Before live host apply, cfg requires a clean personalization Git checkout with a remote
 upstream. It fetches that upstream, fast-forwards when behind, tests a divergent rebase
 in a temporary worktree before rebasing locally, and pushes local commits. If the checkout
