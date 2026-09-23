@@ -7,8 +7,10 @@ from pathlib import Path
 
 from cfg.core.errors import CfgError
 from cfg.core.owners import resolve_host_owner_ids_for_host
+from cfg.core.root import require_cfg_root
 from cfg.core.state import read_host_state
 from cfg.core.system_checks import ensure_gnu_stat_for_pyinfra
+from cfg.host.apply_git_sync import sync_apply_root
 from cfg.host.cli_common import builtin_workflow_path, host_ctx, require_registered_host
 from cfg.host.managed_home import resolve_host_home_plan
 from cfg.host.plan import (
@@ -36,6 +38,7 @@ def apply(
     *, host: str | None, dry_run: bool, yes: bool = False, quiet: bool = False, force: bool = False
 ) -> list[str]:
     """Business logic for `cfg host apply` (returns lines to print)."""
+    sync_result = sync_apply_root(require_cfg_root(), dry_run=dry_run)
     # Pre-flight check: ensure GNU stat is configured for pyinfra
     # Print these immediately before any pyinfra output
     stat_messages = ensure_gnu_stat_for_pyinfra()
@@ -86,6 +89,11 @@ def apply(
         quiet=quiet,
     )
     if dry_run:
-        return [*format_host_cleanup(plan), "home apply planned."]
+        return [f"personalization repo: {sync_result}", *format_host_cleanup(plan), "home apply planned."]
     state_path = capture_host_state(plan)
-    return [*format_host_cleanup(plan), f"state: {state_path}", "home applied."]
+    return [
+        f"personalization repo: {sync_result}",
+        *format_host_cleanup(plan),
+        f"state: {state_path}",
+        "home applied.",
+    ]

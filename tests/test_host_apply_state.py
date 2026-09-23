@@ -18,6 +18,9 @@ def _write(path: Path, content: str) -> None:
 
 
 def _setup_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+    import cfg.host.logic.apply as host_apply_logic
+
+    monkeypatch.setattr(host_apply_logic, "sync_apply_root", lambda *_args, **_kwargs: "up-to-date")
     cfg_root = tmp_path / "cfg"
     _write(cfg_root / ".cfg-root", "")
     _write(
@@ -61,6 +64,29 @@ def test_host_apply_dry_run_passes_flag(tmp_path: Path, monkeypatch: pytest.Monk
 
     assert result.exit_code == 0, (result.output, result.exception)
     assert called["dry_run"] is True
+
+
+def test_host_apply_stops_before_deploy_when_sync_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _setup_host(tmp_path, monkeypatch)
+
+    import cfg.host.logic.apply as host_apply_logic
+    import main
+    from cfg.core.errors import CfgError
+
+    def fail_sync(*_args: Any, **_kwargs: Any) -> str:
+        raise CfgError("Personalization repo is dirty")
+
+    monkeypatch.setattr(host_apply_logic, "sync_apply_root", fail_sync)
+    monkeypatch.setattr(
+        host_apply_logic,
+        "run_pyinfra",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("pyinfra should not run")),
+    )
+    result = CliRunner().invoke(main.app, ["host", "apply", "h1"])
+    assert isinstance(result.exception, CfgError)
+    assert "dirty" in str(result.exception)
 
 
 def test_interactive_host_apply_refreshes_sudo_before_pyinfra(
