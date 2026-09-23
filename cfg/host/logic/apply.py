@@ -39,7 +39,7 @@ def apply(
     *, host: str | None, dry_run: bool, yes: bool = False, quiet: bool = False, force: bool = False
 ) -> list[str]:
     """Business logic for `cfg host apply` (returns lines to print)."""
-    version_result = check_cfg_version(dry_run=dry_run)
+    version_result = check_cfg_version()
     sync_result = sync_apply_root(require_cfg_root(), dry_run=dry_run)
     # Pre-flight check: ensure GNU stat is configured for pyinfra
     # Print these immediately before any pyinfra output
