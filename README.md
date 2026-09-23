@@ -67,6 +67,11 @@ Host operations use pyinfra. Repo operations build and execute a deterministic l
 filesystem plan. Private `deploy.py` files are trusted Python extensions and run with
 the user's privileges. `cfg host apply` applies managed home files and feature deploys;
 `cfg host upgrade` separately refreshes package metadata and upgrades installed packages.
+Before live host apply, cfg requires a clean personalization Git checkout with a remote
+upstream. It fetches that upstream, fast-forwards when behind, tests a divergent rebase
+in a temporary worktree before rebasing locally, and pushes local commits. If the checkout
+is dirty or the rebase conflicts, apply stops with a fix hint. `--dry-run` checks local
+Git state but does not fetch, rebase, or push, so its remote status may be stale.
 Interactive host applies validate sudo credentials before making changes, so native sudo
 can reprompt after a mistyped password. Noninteractive applies keep existing askpass behavior.
 
