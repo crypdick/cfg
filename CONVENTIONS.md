@@ -2,7 +2,15 @@
 
 These principles require engineering judgment. Mechanical policy lives in
 `pyproject.toml` and `prek.toml`; this document covers design choices that a
-linter cannot decide reliably.
+linter cannot decide reliably. For design reviews or convention changes, use
+the shared `coding-conventions` skill and load only the relevant reference.
+This document owns cfg-specific choices.
+
+## Name modules by their purpose
+
+Keep shared functions in specifically named owner modules rather than broad
+`utils.py`, `helpers.py`, or `common.py` modules. If only one module uses a
+function, keep it there unless a separate concept warrants its own owner.
 
 ## Preserve plan-before-write boundaries
 
@@ -57,3 +65,11 @@ Tests should enter through public CLI, logic, or model surfaces and assert
 observable results. A private helper may be tested directly only when its sole
 effect is an external-process side channel with no reachable public
 observation; mark that import with the narrow prek exemption.
+
+## Retain durable preferences
+
+Retain coding preferences when the user intends them to apply to future work.
+Keep judgment-based guidance here. Prefer an existing tool setting or repair an
+existing prek check when reliable detection is possible. Reproduce a missed
+violation before changing its check. A one-task instruction does not establish
+permanent policy.
