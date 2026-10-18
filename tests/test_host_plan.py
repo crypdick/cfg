@@ -158,3 +158,33 @@ def test_capture_requires_declared_outputs_to_exist(tmp_path: Path, monkeypatch:
     with pytest.raises(CfgError, match="declared generated output is missing"):
         capture_host_state(plan)
     assert not (home / ".config/cfg/state.json").exists()
+
+
+def test_capture_explains_dangling_generated_output_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
+    rel = Path(".claude/settings.json")
+    destination = home / rel
+    destination.parent.mkdir(parents=True)
+    destination.symlink_to(tmp_path / "retired-generated-settings.json")
+    plan = build_host_apply_plan(
+        cfg_root=tmp_path / "cfg",
+        home=home,
+        host="workstation",
+        outputs=HomePlan(
+            desired={},
+            generated={rel: GeneratedTarget(owner="host/feature/demo", rel=rel)},
+        ),
+        previous_state=HostStateManifest(),
+    )
+
+    with pytest.raises(CfgError) as error:
+        capture_host_state(plan)
+
+    message = str(error.value)
+    assert "dangling symlink" in message
+    assert "retired-generated-settings.json" in message
+    assert "remove the stale symlink and rerun `cfg host apply`" in message
+    assert not (home / ".config/cfg/state.json").exists()
