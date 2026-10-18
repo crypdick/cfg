@@ -179,7 +179,19 @@ def capture_host_state(plan: HostApplyPlan) -> Path:
 
     for rel, target in sorted(plan.outputs.generated.items(), key=lambda item: item[0].as_posix()):
         destination = plan.home / rel
-        if destination.is_symlink() or not destination.is_file():
+        if destination.is_symlink():
+            link_target = destination.readlink()
+            if not destination.exists():
+                conflicts.append(
+                    f"{rel} (declared generated output is a dangling symlink to {link_target}; "
+                    "remove the stale symlink and rerun `cfg host apply`)"
+                )
+            else:
+                conflicts.append(
+                    f"{rel} (declared generated output is a symlink to {link_target}, not a regular file)"
+                )
+            continue
+        if not destination.is_file():
             conflicts.append(f"{rel} (declared generated output is missing or not a regular file)")
             continue
         managed[rel.as_posix()] = ManagedPathState(
