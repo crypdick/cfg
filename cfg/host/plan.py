@@ -90,6 +90,15 @@ def build_host_apply_plan(
         )
         if unchanged_overlay or (desired_kind == "generated" and prior.kind == "generated"):
             continue
+        # NOTE: README.md, Use documents retrying a completed overlay transition.
+        # A failed apply can deploy the desired link before recording ownership state.
+        destination = home / rel
+        if (
+            desired_kind == "overlay"
+            and destination.is_symlink()
+            and _link_target(destination) == desired_sources[rel]
+        ):
+            continue
         if prior.kind == "overlay":
             if prior.source is None or not Path(prior.source).is_absolute():
                 raise CfgError(f"{rel} (stale overlay has no recorded absolute source)")

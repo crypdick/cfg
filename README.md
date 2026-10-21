@@ -84,6 +84,8 @@ the same evidence in `$XDG_CONFIG_HOME/cfg/state.json`. When configuration stops
 a mirror, generated file, or overlay, cfg removes the stale output only if it still
 matches that evidence; user-modified replacements fail safely. Host state is written
 only after pyinfra succeeds and cfg verifies actual declared outputs.
+When retrying a failed host apply, a symlink already pointing to its desired overlay
+source is preserved even if recorded ownership still describes the previous output.
 
 `cfg validate` parses and resolves the complete personalization repository without
 writing to hosts, repositories, or the configuration root.
