@@ -76,8 +76,10 @@ upstream. It fetches that upstream, fast-forwards when behind, tests a divergent
 in a temporary worktree before rebasing locally, and pushes local commits. If the checkout
 is dirty or the rebase conflicts, apply stops with a fix hint. `--dry-run` checks local
 Git state but does not fetch, rebase, or push, so its remote status may be stale.
-Interactive host applies validate sudo credentials before making changes, so native sudo
-can reprompt after a mistyped password. Noninteractive applies keep existing askpass behavior.
+Interactive host applies check access with `sudo true` before making changes. Native sudo
+can reprompt after a mistyped password; passwordless command policies need no prompt.
+Using `sudo -v` instead can require authentication even when commands are passwordless.
+Noninteractive applies keep existing askpass behavior.
 
 Repo apply records minimal ownership evidence in `.cfg/state.json`; host apply records
 the same evidence in `$XDG_CONFIG_HOME/cfg/state.json`. When configuration stops managing
