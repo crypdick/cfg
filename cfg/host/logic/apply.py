@@ -24,11 +24,12 @@ from cfg.host.runner import run_pyinfra
 
 
 def _refresh_interactive_sudo() -> None:
-    """Prime native sudo timestamp so pyinfra does not reuse bad askpass data."""
+    """Check sudo command access and prime credentials when policy requires them."""
     if not sys.stdin.isatty() or shutil.which("sudo") is None:
         return
     try:
-        result = subprocess.run(["sudo", "-v"], check=False)
+        # NOTE: README.md, Use: -v can require auth even under NOPASSWD policy.
+        result = subprocess.run(["sudo", "true"], check=False)
     except OSError as error:
         raise CfgError(f"Could not run sudo authentication preflight: {error}") from error
     if result.returncode != 0:
