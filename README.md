@@ -74,8 +74,9 @@ from a local checkout, update that checkout before upgrading.
 Before live host apply, cfg requires a clean personalization Git checkout with a remote
 upstream. It fetches that upstream, fast-forwards when behind, tests a divergent rebase
 in a temporary worktree before rebasing locally, and pushes local commits. If the checkout
-is dirty or the rebase conflicts, apply stops with a fix hint. `--dry-run` checks local
-Git state but does not fetch, rebase, or push, so its remote status may be stale.
+is dirty or the rebase conflicts, apply stops with a fix hint. `--allow-dirty` applies
+a dirty checkout without syncing it; a clean checkout still syncs normally. `--dry-run`
+allows dirty files and does not fetch, rebase, or push, so its remote status may be stale.
 Interactive host applies check access with `sudo true` before making changes. Native sudo
 can reprompt after a mistyped password; passwordless command policies need no prompt.
 Using `sudo -v` instead can require authentication even when commands are passwordless.

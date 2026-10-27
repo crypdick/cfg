@@ -31,8 +31,6 @@ def _trial_rebase(root: Path, upstream_oid: str) -> None:
 def _upstream(root: Path) -> tuple[str, str, str]:
     if _git(root, "rev-parse", "--show-toplevel") != str(root.resolve()):
         raise CfgError("Personalization root must be the Git checkout root.")
-    if _git(root, "status", "--porcelain", "--untracked-files=all"):
-        raise CfgError("Personalization repo is dirty. Commit or discard changes.")
     for operation in ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"):
         if (root / _git(root, "rev-parse", "--git-path", operation)).exists():
             raise CfgError(f"Personalization repo has an unfinished Git operation ({operation}).")
@@ -46,10 +44,14 @@ def _upstream(root: Path) -> tuple[str, str, str]:
     return upstream, remote, remote_ref
 
 
-def _sync(root: Path, *, dry_run: bool) -> str:
+def _sync(root: Path, *, dry_run: bool, allow_dirty: bool) -> str:
     upstream, remote, remote_ref = _upstream(root)
     if dry_run:
         return "dry-run: would fetch and check sync"
+    if _git(root, "status", "--porcelain", "--untracked-files=all"):
+        if allow_dirty:
+            return "dirty; skipped sync"
+        raise CfgError("Personalization repo is dirty. Commit or discard changes, or use --allow-dirty.")
     _git(root, "fetch", remote, "--prune")
     head = _git(root, "rev-parse", "HEAD")
     upstream_oid = _git(root, "rev-parse", upstream)
@@ -76,10 +78,10 @@ def _sync(root: Path, *, dry_run: bool) -> str:
     return "up-to-date"
 
 
-def sync_apply_root(root: Path, *, dry_run: bool) -> str:
+def sync_apply_root(root: Path, *, dry_run: bool, allow_dirty: bool = False) -> str:
     """Fetch, safely integrate, and push the current branch's configured upstream."""
     try:
-        return _sync(root, dry_run=dry_run)
+        return _sync(root, dry_run=dry_run, allow_dirty=allow_dirty)
     except CfgError as error:
         raise CfgError(
             f"Cannot sync personalization repo: {error}\nFix it, then rerun `cfg host apply`."
