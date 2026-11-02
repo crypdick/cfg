@@ -6,8 +6,7 @@ Behavior:
 - For non-local targets, upload files into the host home directory (`files.put`).
 
 Safety:
-- By default, we never overwrite existing non-link files when running in symlink mode
-  (conflicts fail loudly).
+- Identical regular files become symlinks; differing files fail safely.
 - Pass ``--force`` to ``cfg host apply`` to overwrite non-link files with symlinks
   (sets ``CFG_FORCE_LINKS=1`` in the pyinfra subprocess).
 """
@@ -15,13 +14,14 @@ Safety:
 from __future__ import annotations
 
 import os
+import shlex
 from pathlib import Path
 
 from pyinfra.api.deploy import deploy
 from pyinfra.context import host
 from pyinfra.facts.files import Link
 from pyinfra.facts.server import Home
-from pyinfra.operations import files
+from pyinfra.operations import files, server
 
 from cfg.core.errors import CfgError
 from cfg.core.ids import parse_host_name
@@ -67,6 +67,27 @@ def _apply_symlinks(*, home: str, desired: dict[Path, OwnerFile]) -> None:
     force = os.environ.get("CFG_FORCE_LINKS") == "1"
     for rel, tf in sorted(desired.items(), key=lambda kv: kv[0].as_posix()):
         dest = f"{home}/{rel.as_posix()}"
+        if not force and Path(dest).is_file() and not Path(dest).is_symlink():
+            destination = shlex.quote(dest)
+            source = shlex.quote(str(tf.src))
+            conflict = shlex.quote(
+                f"Files differ: {dest} and {tf.src}. Compare the two and consolidate their differences."
+            )
+            failure = shlex.quote(f"Could not safely compare {dest} and {tf.src}.")
+            server.shell(
+                name=f"Replace identical file with link: ~/{rel.as_posix()}",
+                commands=[
+                    (
+                        f"if [ ! -L {destination} ] && [ -f {destination} ]; then "
+                        f"cmp -s {destination} {source}; result=$?; "
+                        f"if [ \"$result\" -eq 1 ]; then printf '%s\\n' {conflict} >&2; exit 1; "
+                        f"elif [ \"$result\" -ne 0 ]; then printf '%s\\n' {failure} >&2; exit 1; fi; "
+                        f"rm {destination} && ln -s {source} {destination}; "
+                        f"else printf '%s\\n' {failure} >&2; exit 1; fi"
+                    )
+                ],
+            )
+            continue
         files.link(
             name=f"Link ~/{rel.as_posix()} -> cfg inventory owner payload",
             path=dest,
