@@ -11,23 +11,31 @@ from cfg.pyinfra.execute import PYINFRA_BOOTSTRAP
 
 
 @pytest.mark.parametrize(
-    ("same", "dry_run", "force"),
-    [(True, False, False), (False, False, False), (True, True, False), (False, False, True)],
+    ("source_bytes", "dest_bytes", "same", "dry_run", "force"),
+    [
+        (b"managed\x00bytes\n", b"managed\x00bytes\n", True, False, False),
+        (b"managed\x00bytes\n", b"managed\x00bytes", True, False, False),
+        (b"managed\x00bytes", b"managed\x00bytes\n\n", True, False, False),
+        (b"managed\x00bytes\n", b"different\n", False, False, False),
+        (b"managed\x00bytes\n", b"managed\x00bytes \n", False, False, False),
+        (b"managed\x00bytes\n", b"managed\x00bytes\n", True, True, False),
+        (b"managed\x00bytes\n", b"different\n", False, False, True),
+    ],
 )
 def test_home_apply_handles_existing_regular_file(
-    tmp_path: Path, same: bool, dry_run: bool, force: bool
+    tmp_path: Path, source_bytes: bytes, dest_bytes: bytes, same: bool, dry_run: bool, force: bool
 ) -> None:
     root = tmp_path / "cfg"
     source = root / "features/host/example/overlay/.config/example.json"
     source.parent.mkdir(parents=True)
-    source.write_bytes(b"managed\x00bytes\n")
+    source.write_bytes(source_bytes)
     (root / "features/host/example/feature.toml").write_text(
         "schema_version = 1\nrequires = []\nconflicts = []\ngenerated = []\n", encoding="utf-8"
     )
     home = tmp_path / "home"
     dest = home / ".config/example.json"
     dest.parent.mkdir(parents=True)
-    dest.write_bytes(source.read_bytes() if same else b"different\n")
+    dest.write_bytes(dest_bytes)
     inventory = tmp_path / "inventory.py"
     inventory.write_text(
         f"all = [('@local', {{'_cfg_root': {str(root)!r}, '_cfg_host_name': 'h1', "
@@ -54,7 +62,7 @@ def test_home_apply_handles_existing_regular_file(
     else:
         assert result.returncode != 0
         assert not dest.is_symlink()
-        assert dest.read_bytes() == b"different\n"
+        assert dest.read_bytes() == dest_bytes
         assert str(dest) in result.stdout + result.stderr
         assert str(source) in result.stdout + result.stderr
         assert "compare" in (result.stdout + result.stderr).lower()

@@ -6,7 +6,7 @@ Behavior:
 - For non-local targets, upload files into the host home directory (`files.put`).
 
 Safety:
-- Identical regular files become symlinks; differing files fail safely.
+- Regular files matching apart from trailing LF bytes become symlinks; other differences fail safely.
 - Pass ``--force`` to ``cfg host apply`` to overwrite non-link files with symlinks
   (sets ``CFG_FORCE_LINKS=1`` in the pyinfra subprocess).
 """
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import sys
 from pathlib import Path
 
 from pyinfra.api.deploy import deploy
@@ -74,12 +75,21 @@ def _apply_symlinks(*, home: str, desired: dict[Path, OwnerFile]) -> None:
                 f"Files differ: {dest} and {tf.src}. Compare the two and consolidate their differences."
             )
             failure = shlex.quote(f"Could not safely compare {dest} and {tf.src}.")
+            compare = shlex.quote(
+                "import sys\n"
+                "from pathlib import Path\n"
+                "try:\n"
+                "    a, b = (Path(p).read_bytes().rstrip(b'\\n') for p in sys.argv[1:])\n"
+                "except OSError:\n"
+                "    sys.exit(2)\n"
+                "sys.exit(a != b)\n"
+            )
             server.shell(
                 name=f"Replace identical file with link: ~/{rel.as_posix()}",
                 commands=[
                     (
                         f"if [ ! -L {destination} ] && [ -f {destination} ]; then "
-                        f"cmp -s {destination} {source}; result=$?; "
+                        f"{shlex.quote(sys.executable)} -c {compare} {destination} {source}; result=$?; "
                         f"if [ \"$result\" -eq 1 ]; then printf '%s\\n' {conflict} >&2; exit 1; "
                         f"elif [ \"$result\" -ne 0 ]; then printf '%s\\n' {failure} >&2; exit 1; fi; "
                         f"rm {destination} && ln -s {source} {destination}; "
