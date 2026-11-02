@@ -89,6 +89,8 @@ matches that evidence; user-modified replacements fail safely. Host state is wri
 only after pyinfra succeeds and cfg verifies actual declared outputs.
 When retrying a failed host apply, a symlink already pointing to its desired overlay
 source is preserved even if recorded ownership still describes the previous output.
+An existing regular file with identical contents is replaced by the overlay symlink.
+If contents differ, compare the destination and source and consolidate their differences.
 
 `cfg validate` parses and resolves the complete personalization repository without
 writing to hosts, repositories, or the configuration root.
