@@ -119,7 +119,7 @@ always_run = true
 [[repos.hooks]]
 id = "check-private-test-imports"
 name = "Forbid private imports in tests"
-entry = "uv run python scripts/prek_hooks/check_private_test_imports.py"
+entry = "uv run python scripts/prek_hooks/check_private_test_imports.py --package cfg --package main"
 language = "system"
 types = ["python"]
 

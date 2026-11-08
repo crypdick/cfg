@@ -32,7 +32,7 @@ def test_timeless_comments_ignores_non_docstring_multiline_strings(tmp_path: Pat
 def test_timeless_comments_checks_real_comments_and_docstrings(tmp_path: Path) -> None:
     source = tmp_path / "documented.py"
     source.write_text(
-        '"""Legacy adapter."""\n\nvalue = 1  # old behavior\n',
+        '"""Previously an adapter."""\n\nvalue = 1  # no longer retries\n',
         encoding="utf-8",
     )
 
@@ -40,8 +40,8 @@ def test_timeless_comments_checks_real_comments_and_docstrings(tmp_path: Path) -
 
     assert result.returncode == 1
     assert result.stdout.count("documented.py:") == 2
-    assert r"\blegacy\b" in result.stdout
-    assert r"\bold\b" in result.stdout
+    assert r"\bpreviously\b" in result.stdout
+    assert r"\bno longer\b" in result.stdout
 
 
 def test_timeless_comments_honors_narrow_exemption(tmp_path: Path) -> None:
