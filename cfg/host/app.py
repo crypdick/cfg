@@ -38,9 +38,12 @@ def apply(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the pyinfra approval prompt."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress verbose pyinfra output."),
     force: bool = typer.Option(False, "--force", help="Overwrite existing non-link files with symlinks."),
+    allow_dirty: bool = typer.Option(False, "--allow-dirty", help="Apply dirty checkout without syncing it."),
 ) -> None:
     """Apply host configuration to the current machine (home scope)."""
-    echo_lines(logic.apply(host=host, dry_run=dry_run, yes=yes, quiet=quiet, force=force))
+    echo_lines(
+        logic.apply(host=host, dry_run=dry_run, yes=yes, quiet=quiet, force=force, allow_dirty=allow_dirty)
+    )
 
 
 @app.command()
