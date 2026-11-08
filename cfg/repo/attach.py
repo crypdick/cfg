@@ -50,8 +50,7 @@ def attach_repo(
     cfg_hooks_path = str((cfg_root / "hooks").resolve())
     cur_hooks = git_config_get(repo_root, "core.hooksPath")
 
-    # If this repo was previously attached with hooksPath pointing at cfg, unset it so
-    # standard tooling works again.
+    # Clear cfg-owned hooksPath so standard tooling can install hooks.
     if cur_hooks == cfg_hooks_path:
         if state.attach.prev_core_hooks_path is None:
             state.attach.prev_core_hooks_path = None
