@@ -144,8 +144,31 @@ def test_interactive_host_apply_refreshes_sudo_before_pyinfra(
     result = host_apply_logic.apply(host="h1", dry_run=False)
 
     assert result[-1] == "home applied."
-    assert sudo_calls == [["sudo", "-v"]]
+    assert sudo_calls == [["sudo", "true"]]
     assert runner_called
+
+
+def test_interactive_host_apply_accepts_passwordless_commands_without_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _setup_host(tmp_path, monkeypatch)
+
+    import sys
+
+    import cfg.host.logic.apply as host_apply_logic
+
+    # Model dcloud: command execution is NOPASSWD, but sudo -v requires auth.
+    sudo = tmp_path / "bin/sudo"
+    _write(sudo, '#!/bin/sh\ncase "$*" in true) exit 0;; *) exit 1;; esac\n')
+    sudo.chmod(0o755)
+    monkeypatch.setenv("PATH", str(sudo.parent))
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(host_apply_logic, "ensure_gnu_stat_for_pyinfra", list)
+    monkeypatch.setattr(host_apply_logic, "run_pyinfra", lambda **_kwargs: None)
+
+    result = host_apply_logic.apply(host="h1", dry_run=False)
+
+    assert result[-1] == "home applied."
 
 
 def test_failed_sudo_refresh_aborts_before_pyinfra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -200,3 +223,21 @@ def test_host_apply_records_state_only_after_successful_deploy(
     succeeded = runner.invoke(main.app, ["host", "apply", "h1"])
     assert succeeded.exit_code == 0, (succeeded.output, succeeded.exception)
     assert read_host_state().managed["generated"].kind == "generated"
+
+
+def test_host_apply_allow_dirty_passes_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _setup_host(tmp_path, monkeypatch)
+    import cfg.host.logic.apply as host_apply_logic
+    import main
+
+    called: dict[str, Any] = {}
+    monkeypatch.setattr(
+        host_apply_logic,
+        "sync_apply_root",
+        lambda *_args, **kwargs: called.update(kwargs) or "dirty; skipped sync",
+    )
+    monkeypatch.setattr(host_apply_logic, "run_pyinfra", lambda **_kwargs: None)
+    result = CliRunner().invoke(main.app, ["host", "apply", "h1", "--allow-dirty"])
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert called["allow_dirty"] is True
+    assert "dirty; skipped sync" in result.output

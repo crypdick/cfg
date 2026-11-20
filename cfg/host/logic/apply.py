@@ -24,11 +24,12 @@ from cfg.host.runner import run_pyinfra
 
 
 def _refresh_interactive_sudo() -> None:
-    """Prime native sudo timestamp so pyinfra does not reuse bad askpass data."""
+    """Check sudo command access and prime credentials when policy requires them."""
     if not sys.stdin.isatty() or shutil.which("sudo") is None:
         return
     try:
-        result = subprocess.run(["sudo", "-v"], check=False)
+        # NOTE: README.md, Use: -v can require auth even under NOPASSWD policy.
+        result = subprocess.run(["sudo", "true"], check=False)
     except OSError as error:
         raise CfgError(f"Could not run sudo authentication preflight: {error}") from error
     if result.returncode != 0:
@@ -36,11 +37,17 @@ def _refresh_interactive_sudo() -> None:
 
 
 def apply(
-    *, host: str | None, dry_run: bool, yes: bool = False, quiet: bool = False, force: bool = False
+    *,
+    host: str | None,
+    dry_run: bool,
+    yes: bool = False,
+    quiet: bool = False,
+    force: bool = False,
+    allow_dirty: bool = False,
 ) -> list[str]:
     """Business logic for `cfg host apply` (returns lines to print)."""
     version_result = check_cfg_version()
-    sync_result = sync_apply_root(require_cfg_root(), dry_run=dry_run)
+    sync_result = sync_apply_root(require_cfg_root(), dry_run=dry_run, allow_dirty=allow_dirty)
     # Pre-flight check: ensure GNU stat is configured for pyinfra
     # Print these immediately before any pyinfra output
     stat_messages = ensure_gnu_stat_for_pyinfra()

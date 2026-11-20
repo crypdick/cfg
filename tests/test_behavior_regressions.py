@@ -1,4 +1,4 @@
-"""Focused regressions for CLI and host behaviors that previously broke."""
+"""Focused regressions for CLI and host behavior."""
 
 from __future__ import annotations
 
