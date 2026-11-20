@@ -19,7 +19,7 @@ PYINFRA_BOOTSTRAP = VFORK_SOURCE_SNIPPET + "\nfrom pyinfra_cli.main import main\
 
 # Default timeout for pyinfra CLI operations (seconds).
 # Override with CFG_PYINFRA_TIMEOUT env var. Set to 0 to disable.
-DEFAULT_PYINFRA_TIMEOUT = 300
+DEFAULT_PYINFRA_TIMEOUT = 420
 
 
 def _get_timeout(env: dict[str, str] | None = None) -> int | None:

@@ -22,6 +22,7 @@ def test_run_pyinfra_cli_builds_command_and_sets_yes(monkeypatch: pytest.MonkeyP
         def __init__(self, code: int):
             self.returncode = code
 
+    monkeypatch.delenv("CFG_PYINFRA_TIMEOUT", raising=False)
     monkeypatch.setattr(ex.sys.stdin, "isatty", lambda: False)
 
     def fake_run(cmd: Any, cwd: Any = None, env: Any = None, timeout: Any = None, **_kw: Any) -> _P:
@@ -47,6 +48,7 @@ def test_run_pyinfra_cli_builds_command_and_sets_yes(monkeypatch: pytest.MonkeyP
     assert "deploy.py" in cmd
     assert calls[-1]["cwd"] == str(tmp_path)
     assert calls[-1]["env"]["X"] == "1"
+    assert calls[-1]["timeout"] == 420
 
 
 def test_run_pyinfra_cli_dry_run_adds_dry_flag(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
