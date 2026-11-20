@@ -97,3 +97,19 @@ def test_apply_sync_dry_run_does_not_fetch(repos: tuple[Path, Path, Path]) -> No
     git(other, "push")
     assert sync_apply_root(local, dry_run=True) == "dry-run: would fetch and check sync"
     assert git(local, "rev-parse", "origin/main") != git(other, "rev-parse", "HEAD")
+
+
+def test_apply_sync_dry_run_allows_dirty_checkout(repos: tuple[Path, Path, Path]) -> None:
+    _, local, _ = repos
+    (local / "untracked").write_text("dirty", encoding="utf-8")
+    assert sync_apply_root(local, dry_run=True) == "dry-run: would fetch and check sync"
+
+
+def test_apply_sync_allow_dirty_skips_sync_and_preserves_changes(repos: tuple[Path, Path, Path]) -> None:
+    _, local, other = repos
+    commit(other, "remote", "remote")
+    git(other, "push")
+    (local / "base").write_text("changed", encoding="utf-8")
+    assert sync_apply_root(local, dry_run=False, allow_dirty=True) == "dirty; skipped sync"
+    assert (local / "base").read_text(encoding="utf-8") == "changed"
+    assert git(local, "rev-parse", "origin/main") != git(other, "rev-parse", "HEAD")

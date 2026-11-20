@@ -74,16 +74,24 @@ from a local checkout, update that checkout before upgrading.
 Before live host apply, cfg requires a clean personalization Git checkout with a remote
 upstream. It fetches that upstream, fast-forwards when behind, tests a divergent rebase
 in a temporary worktree before rebasing locally, and pushes local commits. If the checkout
-is dirty or the rebase conflicts, apply stops with a fix hint. `--dry-run` checks local
-Git state but does not fetch, rebase, or push, so its remote status may be stale.
-Interactive host applies validate sudo credentials before making changes, so native sudo
-can reprompt after a mistyped password. Noninteractive applies keep existing askpass behavior.
+is dirty or the rebase conflicts, apply stops with a fix hint. `--allow-dirty` applies
+a dirty checkout without syncing it; a clean checkout still syncs normally. `--dry-run`
+allows dirty files and does not fetch, rebase, or push, so its remote status may be stale.
+Interactive host applies check access with `sudo true` before making changes. Native sudo
+can reprompt after a mistyped password; passwordless command policies need no prompt.
+Using `sudo -v` instead can require authentication even when commands are passwordless.
+Noninteractive applies keep existing askpass behavior.
 
 Repo apply records minimal ownership evidence in `.cfg/state.json`; host apply records
 the same evidence in `$XDG_CONFIG_HOME/cfg/state.json`. When configuration stops managing
 a mirror, generated file, or overlay, cfg removes the stale output only if it still
 matches that evidence; user-modified replacements fail safely. Host state is written
 only after pyinfra succeeds and cfg verifies actual declared outputs.
+When retrying a failed host apply, a symlink already pointing to its desired overlay
+source is preserved even if recorded ownership still describes the previous output.
+An existing regular file matching the overlay, apart from trailing newline bytes, is
+replaced by the overlay symlink. The overlay's trailing newlines take precedence.
+If contents differ, compare the destination and source and consolidate their differences.
 
 `cfg validate` parses and resolves the complete personalization repository without
 writing to hosts, repositories, or the configuration root.
